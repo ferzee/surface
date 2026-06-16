@@ -7,7 +7,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'surface-django-dev-key-2024')
 SURFACE_TOKEN_SECRET = os.environ.get('SECRET', 'surface-dev-key-2024')
 
 DEBUG = True
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "surface.pythonanywhere.com"]
 APPEND_SLASH = False
 
 INSTALLED_APPS = [
@@ -54,4 +54,6 @@ DATABASES = {
 }
 
 STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
