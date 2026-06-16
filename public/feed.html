@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feed — Surface</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="nav"></div>
+
+<div class="page">
+  <!-- Compose -->
+  <div class="card card-p" style="margin-bottom:16px;">
+    <div class="flex gap-3 items-center">
+      <div id="myAvatar"></div>
+      <textarea id="postContent" class="input flex-1" rows="2" placeholder="Share a dive, a thought, or find a buddy…" style="border-radius:18px;resize:none;"></textarea>
+    </div>
+    <div class="flex" style="justify-content:space-between;align-items:center;margin-top:13px;">
+      <button class="btn btn-secondary btn-sm" id="logDiveBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3v15m0 0-4-4m4 4 4-4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Log a dive
+      </button>
+      <button class="btn btn-primary btn-sm" id="postBtn">Post</button>
+    </div>
+  </div>
+
+  <!-- Feed -->
+  <div class="card" id="feedList">
+    <div style="padding:40px;text-align:center;" id="feedLoading">
+      <div class="skeleton" style="height:14px;width:60%;margin:0 auto 10px;"></div>
+      <div class="skeleton" style="height:12px;width:80%;margin:0 auto 6px;"></div>
+      <div class="skeleton" style="height:12px;width:50%;margin:0 auto;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+const me = Auth.require();
+renderNav('feed');
+document.getElementById('myAvatar').innerHTML = fmt.avatar(me.username, me.avatar_color, 38);
+
+let posts = [];
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderPost(post) {
+  const isOwn = post.user_id === me.id;
+  const liked = Boolean(post.user_liked);
+  return `
+    <div class="post-card animate-in" id="post-${post.id}">
+      <div class="flex gap-3 items-start">
+        <a href="/profile.html?id=${post.user_id}" style="flex-shrink:0;">${fmt.avatar(post.username, post.avatar_color, 42)}</a>
+        <div class="flex-1" style="min-width:0;">
+          <div class="flex items-center gap-2" style="justify-content:space-between;">
+            <div>
+              <a href="/profile.html?id=${post.user_id}" style="font-weight:600;font-size:15px;color:#15323D;text-decoration:none;">${escHtml(post.username)}</a>
+              <span style="font-size:12.5px;color:#93A8B1;margin-left:8px;">${fmt.timeAgo(post.created_at)}</span>
+            </div>
+            ${isOwn ? `<button class="btn btn-ghost btn-sm" style="color:#C8D8DE;padding:4px 8px;border-radius:8px;" onclick="deletePost(${post.id})">✕</button>` : ''}
+          </div>
+          <p style="margin-top:8px;font-size:14.5px;line-height:1.55;color:#34505B;white-space:pre-wrap;word-break:break-word;">${escHtml(post.content)}</p>
+          <div class="post-actions">
+            <button class="post-action ${liked ? 'liked' : ''}" id="like-${post.id}" onclick="toggleLike(${post.id})">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="${liked ? '#e05b5b' : 'none'}"><path d="M12 20s-7-4.3-7-9.5A4.2 4.2 0 0 1 12 7a4.2 4.2 0 0 1 7 3.5C19 15.7 12 20 12 20Z" stroke="currentColor" stroke-width="1.8"/></svg>
+              <span id="likeCount-${post.id}">${post.like_count}</span>
+            </button>
+            <button class="post-action" onclick="toggleComments(${post.id})">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 1 1 3.5 6.6L4 20l1-3.2A7.9 7.9 0 0 1 4 12Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+              <span id="commentCount-${post.id}">${post.comment_count}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="comments-${post.id}" class="hidden" style="margin-top:14px;padding-top:14px;border-top:1px solid #F0F5F7;"></div>
+    </div>
+  `;
+}
+
+async function loadFeed() {
+  try {
+    posts = await api.get('/posts/feed');
+    const list = document.getElementById('feedList');
+    if (!posts.length) {
+      list.innerHTML = `<div style="padding:60px 24px;text-align:center;">
+        <div style="font-family:'Instrument Serif',Georgia,serif;font-size:48px;color:#D0DEE3;line-height:1;margin-bottom:12px;">∿</div>
+        <div style="font-size:15px;font-weight:600;color:#7C95A0;">Your feed is empty</div>
+        <div style="font-size:13px;color:#93A8B1;margin-top:5px;">Add some buddies to see their posts here</div>
+      </div>`;
+      return;
+    }
+    list.innerHTML = posts.map(renderPost).join('');
+  } catch(e) {
+    document.getElementById('feedList').innerHTML = '<div style="padding:28px;text-align:center;color:#93A8B1;font-size:14px;">Failed to load feed</div>';
+  }
+}
+
+document.getElementById('postBtn').addEventListener('click', async () => {
+  const content = document.getElementById('postContent').value.trim();
+  if (!content) return;
+  const btn = document.getElementById('postBtn');
+  btn.disabled = true; btn.textContent = 'Posting…';
+  try {
+    const post = await api.post('/posts', { content });
+    posts.unshift(post);
+    const list = document.getElementById('feedList');
+    const emptyMsg = list.querySelector('[style*="padding:60px"]');
+    if (emptyMsg) list.innerHTML = '';
+    list.insertAdjacentHTML('afterbegin', renderPost(post));
+    document.getElementById('postContent').value = '';
+  } catch(e) { alert(e.error || 'Failed to post'); }
+  btn.disabled = false; btn.textContent = 'Post';
+});
+
+async function deletePost(id) {
+  if (!confirm('Delete this post?')) return;
+  try {
+    await api.del(`/posts/${id}`);
+    document.getElementById(`post-${id}`)?.remove();
+  } catch {}
+}
+
+async function toggleLike(id) {
+  try {
+    const { liked, count } = await api.post(`/posts/${id}/like`);
+    const btn = document.getElementById(`like-${id}`);
+    btn.innerHTML = `<svg width="17" height="17" viewBox="0 0 24 24" fill="${liked ? '#e05b5b' : 'none'}"><path d="M12 20s-7-4.3-7-9.5A4.2 4.2 0 0 1 12 7a4.2 4.2 0 0 1 7 3.5C19 15.7 12 20 12 20Z" stroke="currentColor" stroke-width="1.8"/></svg> <span id="likeCount-${id}">${count}</span>`;
+    btn.className = `post-action${liked ? ' liked' : ''}`;
+  } catch {}
+}
+
+const loadedComments = {};
+
+async function toggleComments(id) {
+  const el = document.getElementById(`comments-${id}`);
+  if (!el.classList.contains('hidden')) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  if (!loadedComments[id]) {
+    el.innerHTML = '<div style="font-size:13px;color:#93A8B1;">Loading…</div>';
+    try {
+      const comments = await api.get(`/posts/${id}/comments`);
+      loadedComments[id] = comments;
+    } catch { el.innerHTML = '<div style="font-size:13px;color:#93A8B1;">Failed to load</div>'; return; }
+  }
+  renderComments(id);
+}
+
+function renderComments(postId) {
+  const comments = loadedComments[postId] || [];
+  const el = document.getElementById(`comments-${postId}`);
+  el.innerHTML = comments.map(c => `
+    <div class="flex gap-3 items-start" style="margin-bottom:10px;">
+      ${fmt.avatar(c.username, c.avatar_color, 30)}
+      <div style="background:#F4F9FB;border-radius:14px;padding:9px 13px;flex:1;min-width:0;">
+        <span style="font-weight:600;font-size:13px;color:#15323D;">${escHtml(c.username)}</span>
+        <span style="font-size:12px;color:#93A8B1;margin-left:8px;">${fmt.timeAgo(c.created_at)}</span>
+        <p style="font-size:13.5px;color:#34505B;margin-top:3px;line-height:1.45;">${escHtml(c.content)}</p>
+      </div>
+    </div>
+  `).join('') + `
+    <div class="flex gap-2 items-center" style="margin-top:8px;">
+      ${fmt.avatar(me.username, me.avatar_color, 30)}
+      <input type="text" class="input flex-1" style="padding:7px 12px;font-size:13.5px;border-radius:999px;" placeholder="Write a comment…" id="ci-${postId}">
+      <button class="btn btn-primary btn-sm" onclick="submitComment(${postId})" style="padding:7px 14px;">Post</button>
+    </div>
+  `;
+  document.getElementById(`ci-${postId}`)?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitComment(postId);
+  });
+}
+
+async function submitComment(postId) {
+  const input = document.getElementById(`ci-${postId}`);
+  const content = input?.value.trim();
+  if (!content) return;
+  try {
+    const c = await api.post(`/posts/${postId}/comments`, { content });
+    if (!loadedComments[postId]) loadedComments[postId] = [];
+    loadedComments[postId].push(c);
+    renderComments(postId);
+    const countEl = document.getElementById(`commentCount-${postId}`);
+    if (countEl) countEl.textContent = parseInt(countEl.textContent) + 1;
+  } catch {}
+}
+
+document.getElementById('logDiveBtn').addEventListener('click', () => openDiveLogger(null));
+
+loadFeed();
+</script>
+</body>
+</html>

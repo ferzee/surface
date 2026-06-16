@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Events — Surface</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="nav"></div>
+
+<div class="page stack">
+  <!-- Header -->
+  <div class="flex items-center" style="justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:34px;color:#15323D;line-height:1.1;">Events</h1>
+    <button class="btn btn-primary btn-sm" id="createBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
+      Create
+    </button>
+  </div>
+
+  <!-- Filter pills -->
+  <div style="display:flex;background:rgba(255,255,255,0.55);border-radius:999px;padding:4px;gap:2px;align-self:flex-start;">
+    <button class="tab-pill active" data-f="upcoming">Upcoming</button>
+    <button class="tab-pill" data-f="past">Past</button>
+    <button class="tab-pill" data-f="mine">Mine</button>
+  </div>
+
+  <div id="eventList">
+    <div class="card skeleton" style="height:140px;"></div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+const me = Auth.require();
+renderNav('events');
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+let events = [];
+let filter = 'upcoming';
+
+const DISC_COLORS = { static: '#6E8CA8', dynamic: '#3FA39B', depth: '#2E6E8E' };
+const EVENT_GRADS = [
+  'linear-gradient(135deg,#86C0D6,#2E6E8E)',
+  'linear-gradient(135deg,#9DC7C3,#4FA3A0)',
+  'linear-gradient(135deg,#A9B6D6,#6E8CA8)',
+  'linear-gradient(135deg,#E6CBA8,#C9A56F)',
+];
+
+function eventGrad(id) {
+  return EVENT_GRADS[id % EVENT_GRADS.length];
+}
+
+function renderEvents() {
+  const now = new Date();
+  const filtered = events.filter(e => {
+    const d = new Date(e.event_date);
+    if (filter === 'upcoming') return d >= now;
+    if (filter === 'past')     return d < now;
+    if (filter === 'mine')     return e.creator_id === me.id || e.user_status;
+    return true;
+  });
+
+  const el = document.getElementById('eventList');
+  if (!filtered.length) {
+    el.innerHTML = `<div class="card card-p" style="text-align:center;padding:60px 24px;">
+      <div style="font-family:'Instrument Serif',Georgia,serif;font-size:44px;color:#D0DEE3;line-height:1;margin-bottom:12px;">📅</div>
+      <div style="font-size:15px;font-weight:600;color:#7C95A0;">No ${filter} events</div>
+      ${filter === 'upcoming' ? '<div style="font-size:13px;color:#93A8B1;margin-top:5px;">Create one to organise a dive session!</div>' : ''}
+    </div>`;
+    return;
+  }
+  el.innerHTML = filtered.map(eventCard).join('');
+}
+
+function eventCard(ev) {
+  const d = new Date(ev.event_date);
+  const isPast = d < new Date();
+  const isCreator = ev.creator_id === me.id;
+  const status = ev.user_status;
+  const mon = d.toLocaleDateString('en-US', { month: 'short' });
+  const day = d.getDate();
+  const grad = eventGrad(ev.id);
+
+  return `<div class="card animate-in" id="ev-${ev.id}" style="margin-bottom:14px;overflow:hidden;">
+    <div style="height:96px;position:relative;background:${grad};">
+      <div style="position:absolute;inset:0;background:radial-gradient(140px 80px at 20% 30%,rgba(255,255,255,0.22),transparent);"></div>
+      <div style="position:absolute;left:14px;top:14px;background:rgba(255,255,255,0.92);border-radius:12px;padding:7px 12px;text-align:center;line-height:1.1;min-width:44px;">
+        <div style="font-size:10px;color:#7C95A0;text-transform:uppercase;letter-spacing:.06em;">${mon}</div>
+        <div style="font-family:'Instrument Serif',Georgia,serif;font-size:22px;color:#15323D;">${day}</div>
+      </div>
+      ${isCreator ? `<span style="position:absolute;right:14px;top:14px;background:rgba(14,42,51,0.4);backdrop-filter:blur(6px);color:#fff;font-size:11px;font-weight:600;padding:5px 11px;border-radius:999px;">You're hosting</span>` : ''}
+      ${isPast ? `<span style="position:absolute;right:14px;top:14px;background:rgba(14,42,51,0.3);backdrop-filter:blur(6px);color:rgba(255,255,255,0.8);font-size:11px;padding:5px 10px;border-radius:999px;">Past</span>` : ''}
+    </div>
+    <div style="padding:16px 18px;">
+      <div class="flex items-start" style="justify-content:space-between;gap:10px;">
+        <div class="flex-1">
+          <div style="font-weight:600;font-size:16.5px;color:#15323D;">${escHtml(ev.title)}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:13px;color:#7C95A0;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="#7C95A0" stroke-width="1.7"/><path d="M12 8v4l2.5 1.5" stroke="#7C95A0" stroke-width="1.7" stroke-linecap="round"/></svg>
+            ${fmt.date(ev.event_date)} · ${d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}
+          </div>
+          ${ev.location ? `<div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:13px;color:#7C95A0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11Z" stroke="#7C95A0" stroke-width="1.7"/></svg>${escHtml(ev.location)} · by <a href="/profile.html?id=${ev.creator_id}" style="color:#2E7D97;text-decoration:none;font-weight:500;">${escHtml(ev.creator_name)}</a></div>` : ''}
+          ${ev.description ? `<p style="font-size:14px;color:#5B7682;margin-top:10px;line-height:1.5;">${escHtml(ev.description)}</p>` : ''}
+        </div>
+        ${isCreator && !isPast ? `<button class="btn btn-ghost btn-sm" style="color:#C8D8DE;padding:4px 8px;" onclick="deleteEvent(${ev.id})">✕</button>` : ''}
+      </div>
+      <div class="flex items-center" style="margin-top:14px;padding-top:14px;border-top:1px solid #F0F5F7;">
+        <div style="display:flex;align-items:center;gap:5px;font-size:13px;color:#7C95A0;">
+          ${ev.discipline ? `<span class="badge badge-${ev.discipline}" style="margin-right:6px;">${fmt.disciplineLabel(ev.discipline)}</span>` : ''}
+          <strong style="color:#15323D;">${ev.going_count}</strong> going${ev.maybe_count ? `, <strong style="color:#15323D;">${ev.maybe_count}</strong> maybe` : ''}
+          ${ev.max_participants ? ` · max ${ev.max_participants}` : ''}
+        </div>
+        ${!isPast && !isCreator ? `
+          <div class="flex gap-2" style="margin-left:auto;">
+            <button class="rsvp-btn ${status==='going'?'active-going':''}" onclick="rsvp(${ev.id},'going')">Going</button>
+            <button class="rsvp-btn ${status==='maybe'?'active-maybe':''}" onclick="rsvp(${ev.id},'maybe')">Maybe</button>
+            ${status ? `<button class="btn btn-ghost btn-sm text-muted" onclick="rsvp(${ev.id},'not_going')">Can't go</button>` : ''}
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+async function rsvp(eventId, status) {
+  try {
+    const updated = await api.put(`/events/${eventId}/participate`, { status });
+    events = events.map(e => e.id === eventId ? updated : e);
+    renderEvents();
+  } catch {}
+}
+
+async function deleteEvent(id) {
+  if (!confirm('Delete this event?')) return;
+  try {
+    await api.del(`/events/${id}`);
+    events = events.filter(e => e.id !== id);
+    renderEvents();
+  } catch {}
+}
+
+document.querySelectorAll('.tab-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.tab-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    filter = pill.dataset.f;
+    renderEvents();
+  });
+});
+
+document.getElementById('createBtn').addEventListener('click', () => {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:500px;">
+      <div class="modal-header">
+        <span class="modal-title">Create event</span>
+        <button class="modal-close" id="cClose">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="label">Title *</label>
+        <input class="input" id="cTitle" placeholder="Weekend depth session">
+      </div>
+      <div class="form-group">
+        <label class="label">Date &amp; Time *</label>
+        <input class="input" type="datetime-local" id="cDate">
+      </div>
+      <div class="form-group">
+        <label class="label">Location</label>
+        <input class="input" id="cLoc" placeholder="e.g. Blue Hole, Dahab">
+      </div>
+      <div class="form-group">
+        <label class="label">Discipline</label>
+        <select class="input" id="cDisc">
+          <option value="">Any / General</option>
+          <option value="static">Static</option>
+          <option value="dynamic">Dynamic</option>
+          <option value="depth">Depth</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="label">Max participants <span class="text-muted" style="font-weight:400;">(optional)</span></label>
+        <input class="input" type="number" id="cMax" min="2" placeholder="Leave empty for unlimited">
+      </div>
+      <div class="form-group">
+        <label class="label">Description</label>
+        <textarea class="input" id="cDesc" rows="3" placeholder="What's the plan?"></textarea>
+      </div>
+      <div id="cErr"></div>
+      <div class="flex gap-2 mt-3">
+        <button class="btn btn-secondary flex-1" id="cCancel">Cancel</button>
+        <button class="btn btn-primary flex-1" id="cSubmit">Create event</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('#cClose').addEventListener('click', close);
+  overlay.querySelector('#cCancel').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  overlay.querySelector('#cSubmit').addEventListener('click', async () => {
+    const title = overlay.querySelector('#cTitle').value.trim();
+    const event_date = overlay.querySelector('#cDate').value;
+    if (!title || !event_date) {
+      overlay.querySelector('#cErr').innerHTML = '<div class="alert-error">Title and date are required</div>';
+      return;
+    }
+    const btn = overlay.querySelector('#cSubmit');
+    btn.disabled = true; btn.textContent = 'Creating…';
+    try {
+      const ev = await api.post('/events', {
+        title, event_date,
+        location:         overlay.querySelector('#cLoc').value,
+        discipline:       overlay.querySelector('#cDisc').value || null,
+        max_participants: parseInt(overlay.querySelector('#cMax').value) || null,
+        description:      overlay.querySelector('#cDesc').value,
+      });
+      events.unshift(ev);
+      renderEvents();
+      close();
+    } catch(e) {
+      overlay.querySelector('#cErr').innerHTML = `<div class="alert-error">${e.error || 'Failed to create event'}</div>`;
+      btn.disabled = false; btn.textContent = 'Create event';
+    }
+  });
+});
+
+async function load() {
+  try {
+    events = await api.get('/events');
+    renderEvents();
+  } catch {
+    document.getElementById('eventList').innerHTML = '<div class="card card-p text-muted text-sm" style="text-align:center;">Failed to load events</div>';
+  }
+}
+
+load();
+</script>
+</body>
+</html>

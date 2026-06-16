@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — Surface</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-box">
+    <div class="auth-brand">
+      <div class="auth-brand-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M3 13c2.2 0 2.2-2 4.5-2s2.3 2 4.5 2 2.2-2 4.5-2 2.3 2 4.5 2" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+          <path d="M3 18c2.2 0 2.2-2 4.5-2s2.3 2 4.5 2 2.2-2 4.5-2 2.3 2 4.5 2" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+        </svg>
+      </div>
+      <span class="auth-brand-name">Surface</span>
+    </div>
+
+    <div class="auth-card">
+      <h1 class="auth-heading">Welcome back</h1>
+      <p class="text-muted" style="font-size:14.5px;margin-bottom:26px;">Sign in to your account</p>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="label">Email or username</label>
+          <input class="input" type="text" id="email" placeholder="you@example.com or alice" required>
+        </div>
+        <div class="form-group">
+          <label class="label">Password</label>
+          <input class="input" type="password" id="password" placeholder="••••••••" required>
+        </div>
+        <div id="err"></div>
+        <button class="btn btn-primary w-full" style="padding:13px;margin-top:6px;font-size:15px;" type="submit" id="submitBtn">
+          Sign In
+        </button>
+      </form>
+
+      <p class="text-muted" style="font-size:13.5px;margin-top:20px;text-align:center;">
+        New to Surface?
+        <a href="/register.html" class="text-accent" style="text-decoration:none;font-weight:600;">Create an account</a>
+      </p>
+    </div>
+
+    <div style="margin-top:28px;background:rgba(255,255,255,0.55);border-radius:20px;padding:20px 22px;">
+      <p style="font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#93A8B1;margin-bottom:14px;">Freediving disciplines tracked</p>
+      <div class="grid-3" style="gap:10px;">
+        <div style="text-align:center;">
+          <div style="width:36px;height:36px;border-radius:12px;background:rgba(110,140,168,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="#6E8CA8" stroke-width="1.9"/><path d="M12 8v4l2.5 1.5" stroke="#6E8CA8" stroke-width="1.9" stroke-linecap="round"/></svg>
+          </div>
+          <div style="font-size:12px;font-weight:600;color:#6E8CA8;">Static</div>
+          <div style="font-size:11px;color:#93A8B1;margin-top:2px;">Breath hold</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="width:36px;height:36px;border-radius:12px;background:rgba(63,163,155,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 12h18m0 0-5-5m5 5-5 5" stroke="#3FA39B" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="font-size:12px;font-weight:600;color:#3FA39B;">Dynamic</div>
+          <div style="font-size:11px;color:#93A8B1;margin-top:2px;">Distance</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="width:36px;height:36px;border-radius:12px;background:rgba(46,110,142,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v15m0 0-4-4m4 4 4-4" stroke="#2E6E8E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="font-size:12px;font-weight:600;color:#2E6E8E;">Depth</div>
+          <div style="font-size:11px;color:#93A8B1;margin-top:2px;">Meters down</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+  if (Auth.getToken()) location.href = '/feed.html';
+
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('err');
+    errEl.innerHTML = '';
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    try {
+      const data = await api.post('/auth/login', {
+        email:    document.getElementById('email').value,
+        password: document.getElementById('password').value,
+      });
+      Auth.set(data.user, data.token);
+      location.href = '/feed.html';
+    } catch (e) {
+      errEl.innerHTML = `<div class="alert-error">${e.error || 'Login failed'}</div>`;
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+    }
+  });
+</script>
+</body>
+</html>

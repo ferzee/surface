@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile — Surface</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="nav"></div>
+
+<div class="page-wide" id="profilePage">
+  <div class="card card-p skeleton" style="height:200px;"></div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+const me = Auth.require();
+renderNav('');
+
+const profileId = parseInt(new URLSearchParams(location.search).get('id') || me.id);
+const isOwn = profileId === me.id;
+
+let profile, dives, posts;
+let activeTab = 'dives';
+let diveFilter = 'all';
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+const DISC_COLORS = { static: '#6E8CA8', dynamic: '#3FA39B', depth: '#2E6E8E' };
+const DISC_SUBS   = { static: 'Breath-hold', dynamic: 'Bi-fins', depth: 'Constant weight' };
+
+async function load() {
+  try {
+    [profile, dives, posts] = await Promise.all([
+      api.get(`/users/${profileId}`),
+      api.get(`/dives/user/${profileId}`),
+      api.get(`/posts/user/${profileId}`),
+    ]);
+    render();
+  } catch(e) {
+    document.getElementById('profilePage').innerHTML = '<div style="text-align:center;padding:60px;color:#93A8B1;font-size:15px;">User not found</div>';
+  }
+}
+
+function render() {
+  const rel = profile.buddyRelation;
+  let buddyBtnLabel, buddyBtnClass, buddyDisabled = false;
+  if (!rel)                                            { buddyBtnLabel = 'Connect'; buddyBtnClass = 'btn-primary'; }
+  else if (rel.status === 'pending' && rel.sender_id === me.id) { buddyBtnLabel = 'Requested'; buddyBtnClass = 'btn-secondary'; buddyDisabled = true; }
+  else if (rel.status === 'pending')                   { buddyBtnLabel = 'Accept'; buddyBtnClass = 'btn-primary'; }
+  else if (rel.status === 'accepted')                  { buddyBtnLabel = 'Buddies ✓'; buddyBtnClass = 'btn-secondary'; }
+  else                                                 { buddyBtnLabel = 'Connect'; buddyBtnClass = 'btn-primary'; }
+
+  const coverGrad = avatarGradient(profile.avatar_color);
+  const initials = (profile.username || '?').slice(0, 2).toUpperCase();
+
+  const page = document.getElementById('profilePage');
+  page.innerHTML = `
+    <!-- Cover + avatar -->
+    <div class="card animate-in" style="margin-bottom:18px;overflow:hidden;">
+      <div style="height:110px;background:${coverGrad};position:relative;">
+        <div style="position:absolute;inset:0;background:radial-gradient(200px 100px at 80% 20%,rgba(255,255,255,0.18),transparent);"></div>
+      </div>
+      <div style="padding:0 20px 20px;margin-top:-38px;position:relative;">
+        <div style="width:76px;height:76px;border-radius:22px;background:${coverGrad};border:4px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:26px;box-shadow:0 4px 14px rgba(14,42,51,0.14);">${initials}</div>
+        <div class="flex items-start" style="justify-content:space-between;margin-top:12px;flex-wrap:wrap;gap:10px;">
+          <div>
+            <h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:28px;color:#15323D;line-height:1.1;">${escHtml(profile.username)}</h1>
+            ${profile.location ? `<div style="display:flex;align-items:center;gap:5px;margin-top:5px;font-size:13.5px;color:#7C95A0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11Z" stroke="#7C95A0" stroke-width="1.7"/></svg>${escHtml(profile.location)}</div>` : ''}
+            <div style="font-size:13.5px;color:#7C95A0;margin-top:8px;"><strong style="color:#15323D;">${profile.buddyCount}</strong> buddies · <strong style="color:#15323D;">${profile.diveCount}</strong> dives</div>
+          </div>
+          ${isOwn
+            ? `<button class="btn btn-secondary btn-sm" id="editBtn">Edit profile</button>`
+            : `<button class="btn ${buddyBtnClass} btn-sm" id="buddyBtn" ${buddyDisabled ? 'disabled' : ''}>${buddyBtnLabel}</button>`
+          }
+        </div>
+        ${profile.bio ? `<p style="margin-top:12px;font-size:14.5px;color:#34505B;line-height:1.55;">${escHtml(profile.bio)}</p>` : ''}
+      </div>
+    </div>
+
+    <!-- Personal Records -->
+    <div style="margin-bottom:18px;">
+      <div style="font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#93A8B1;margin-bottom:12px;">Personal Records</div>
+      <div class="grid-3">
+        ${recordCard('depth',   profile.records.depth)}
+        ${recordCard('dynamic', profile.records.dynamic)}
+        ${recordCard('static',  profile.records.static)}
+      </div>
+    </div>
+
+    <!-- Tabs + content -->
+    <div class="card animate-in">
+      <div style="padding:16px 16px 0;">
+        <div class="tabs">
+          <button class="tab ${activeTab==='dives'?'active':''}" id="tabDives" onclick="switchTab('dives')">Dives (${dives.length})</button>
+          <button class="tab ${activeTab==='posts'?'active':''}" id="tabPosts" onclick="switchTab('posts')">Posts (${posts.length})</button>
+        </div>
+      </div>
+      <div id="tabContent"></div>
+    </div>
+  `;
+
+  renderTabContent();
+
+  if (!isOwn) {
+    document.getElementById('buddyBtn')?.addEventListener('click', handleBuddyAction);
+  }
+  if (isOwn) {
+    document.getElementById('editBtn')?.addEventListener('click', openEditModal);
+  }
+}
+
+function recordCard(discipline, value) {
+  const color = DISC_COLORS[discipline];
+  const sub = DISC_SUBS[discipline];
+  const label = fmt.disciplineLabel(discipline);
+  let valueHtml;
+  if (value != null) {
+    if (discipline === 'static') {
+      valueHtml = `<div class="record-value">${fmt.staticTime(value)}</div>`;
+    } else {
+      valueHtml = `<div class="record-value">${value}<span class="record-value-unit">m</span></div>`;
+    }
+  } else {
+    valueHtml = `<div class="record-empty">—</div>`;
+  }
+  return `<div class="record-card">
+    <span class="record-dot" style="background:${color};"></span>
+    <div class="record-label">${label}</div>
+    ${valueHtml}
+    <div class="record-sublabel">${sub}</div>
+  </div>`;
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(tab === 'dives' ? 'tabDives' : 'tabPosts').classList.add('active');
+  renderTabContent();
+}
+
+function renderTabContent() {
+  const el = document.getElementById('tabContent');
+  if (activeTab === 'dives') {
+    const filtered = diveFilter === 'all' ? dives : dives.filter(d => d.discipline === diveFilter);
+    el.innerHTML = `
+      <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:1px solid #F0F5F7;">
+        <div class="flex gap-1">
+          ${['all','depth','dynamic','static'].map(f => `
+            <button style="padding:5px 13px;border-radius:999px;font-size:12.5px;font-weight:600;border:none;cursor:pointer;font-family:inherit;transition:all .15s;background:${diveFilter===f?'#2E7D97':'#F4F9FB'};color:${diveFilter===f?'#fff':'#7C95A0'};" onclick="setDiveFilter('${f}')">${f==='all'?'All':fmt.disciplineLabel(f)}</button>
+          `).join('')}
+        </div>
+        ${isOwn ? `<button class="btn btn-primary btn-sm" onclick="openDiveLogger(onDiveLogged)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg> Log Dive</button>` : ''}
+      </div>
+      <div>
+        ${filtered.length === 0
+          ? '<div style="text-align:center;padding:40px;color:#93A8B1;font-size:14px;">No dives logged yet</div>'
+          : filtered.map(diveRow).join('')
+        }
+      </div>
+    `;
+  } else {
+    el.innerHTML = posts.length === 0
+      ? '<div style="text-align:center;padding:40px;color:#93A8B1;font-size:14px;">No posts yet</div>'
+      : posts.map(postRow).join('');
+  }
+}
+
+function diveRow(dive) {
+  const color = DISC_COLORS[dive.discipline];
+  return `<div class="flex items-center gap-3" style="padding:13px 16px;border-bottom:1px solid #F0F5F7;">
+    <span style="width:9px;height:9px;border-radius:999px;flex:none;background:${color};"></span>
+    <div style="flex:1;line-height:1.3;min-width:0;">
+      <div style="font-size:14.5px;font-weight:500;color:#15323D;">${fmt.disciplineLabel(dive.discipline)}</div>
+      <div style="font-size:12px;color:#93A8B1;margin-top:1px;">${dive.location ? escHtml(dive.location) + ' · ' : ''}${new Date(dive.dive_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
+    </div>
+    <div style="font-family:'Instrument Serif',Georgia,serif;font-size:22px;color:#15323D;">${fmt.diveValue(dive.discipline, dive.value)}</div>
+    ${isOwn ? `<button class="btn btn-ghost btn-sm" style="color:#C8D8DE;padding:4px 8px;flex-shrink:0;" onclick="deleteDive(${dive.id})">✕</button>` : ''}
+  </div>`;
+}
+
+function postRow(post) {
+  const isPostOwn = post.user_id === me.id;
+  return `<div style="padding:16px;border-bottom:1px solid #F0F5F7;">
+    <div class="flex items-start gap-3">
+      ${fmt.avatar(post.username, post.avatar_color, 34)}
+      <div class="flex-1" style="min-width:0;">
+        <div class="flex" style="justify-content:space-between;align-items:center;">
+          <div>
+            <span style="font-weight:600;font-size:14px;color:#15323D;">${escHtml(post.username)}</span>
+            <span style="font-size:12px;color:#93A8B1;margin-left:8px;">${fmt.timeAgo(post.created_at)}</span>
+          </div>
+          ${isPostOwn ? `<button class="btn btn-ghost btn-sm" style="color:#C8D8DE;padding:4px 8px;" onclick="deletePost(${post.id})">✕</button>` : ''}
+        </div>
+        <p style="margin-top:5px;font-size:14px;color:#34505B;white-space:pre-wrap;line-height:1.5;">${escHtml(post.content)}</p>
+        <div class="flex gap-3 mt-2 text-quiet" style="font-size:12.5px;">
+          <span>♥ ${post.like_count}</span>
+          <span>💬 ${post.comment_count}</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function setDiveFilter(f) { diveFilter = f; renderTabContent(); }
+
+function onDiveLogged(dive) {
+  dives.unshift(dive);
+  profile.diveCount++;
+  if (profile.records[dive.discipline] === null || dive.value > profile.records[dive.discipline]) {
+    profile.records[dive.discipline] = dive.value;
+  }
+  render();
+}
+
+async function deleteDive(id) {
+  if (!confirm('Delete this dive?')) return;
+  try {
+    await api.del(`/dives/${id}`);
+    dives = dives.filter(d => d.id !== id);
+    profile.diveCount = Math.max(0, profile.diveCount - 1);
+    profile.records = { static: null, dynamic: null, depth: null };
+    dives.forEach(d => {
+      if (profile.records[d.discipline] === null || d.value > profile.records[d.discipline])
+        profile.records[d.discipline] = d.value;
+    });
+    render();
+  } catch {}
+}
+
+async function deletePost(id) {
+  if (!confirm('Delete this post?')) return;
+  try {
+    await api.del(`/posts/${id}`);
+    posts = posts.filter(p => p.id !== id);
+    render();
+  } catch {}
+}
+
+async function handleBuddyAction() {
+  const btn = document.getElementById('buddyBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const rel = profile.buddyRelation;
+    if (!rel) {
+      await api.post(`/buddies/request/${profileId}`);
+      profile.buddyRelation = { status: 'pending', sender_id: me.id };
+    } else if (rel.status === 'pending' && rel.sender_id !== me.id) {
+      await api.put(`/buddies/request/${rel.id}`, { status: 'accepted' });
+      profile.buddyRelation = { ...rel, status: 'accepted' };
+      profile.buddyCount++;
+    } else if (rel.status === 'accepted') {
+      if (!confirm('Remove this buddy?')) { if (btn) btn.disabled = false; return; }
+      await api.del(`/buddies/${profileId}`);
+      profile.buddyRelation = null;
+      profile.buddyCount = Math.max(0, profile.buddyCount - 1);
+    }
+    render();
+  } catch(e) {
+    alert(e.error || 'Action failed');
+    if (btn) btn.disabled = false;
+  }
+}
+
+function openEditModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">Edit profile</span>
+        <button class="modal-close" id="editClose">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="label">Bio</label>
+        <textarea class="input" id="editBio" rows="3" placeholder="Tell the community about yourself…">${escHtml(profile.bio || '')}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="label">Location</label>
+        <input class="input" type="text" id="editLoc" placeholder="e.g. Dahab, Egypt" value="${escHtml(profile.location || '')}">
+      </div>
+      <div id="editErr"></div>
+      <div class="flex gap-2 mt-3">
+        <button class="btn btn-secondary flex-1" id="editCancel">Cancel</button>
+        <button class="btn btn-primary flex-1" id="editSave">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('#editClose').addEventListener('click', close);
+  overlay.querySelector('#editCancel').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('#editSave').addEventListener('click', async () => {
+    const btn = overlay.querySelector('#editSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const updated = await api.put('/users/me', {
+        bio:      overlay.querySelector('#editBio').value,
+        location: overlay.querySelector('#editLoc').value,
+      });
+      profile = { ...profile, bio: updated.bio, location: updated.location };
+      Auth.set({ ...me, bio: updated.bio, location: updated.location }, Auth.getToken());
+      render();
+      close();
+    } catch(e) {
+      overlay.querySelector('#editErr').innerHTML = `<div class="alert-error">${e.error || 'Save failed'}</div>`;
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+  });
+}
+
+load();
+</script>
+</body>
+</html>

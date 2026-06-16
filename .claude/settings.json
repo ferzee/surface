@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(which node *)",
+      "Read(//usr/local/bin/**)",
+      "Bash(ls /opt/homebrew/bin/ | grep -E 'node|npm|bun|pnpm' 2>/dev/null; ls /usr/local/bin/ | grep -E 'node|npm|bun' 2>/dev/null; ls ~/.nvm/versions/node/ 2>/dev/null | head -5)",
+      "Read(//opt/homebrew/**)",
+      "Read(//Users/fersyvanderzee/.nvm/versions/**)",
+      "Bash(find /Users/fersyvanderzee -name \"node\" -type f 2>/dev/null | head -5; find /usr -name \"node\" -type f 2>/dev/null | head -5)",
+      "Read(//Users/fersyvanderzee/**)",
+      "Read(//usr/**)",
+      "Bash(timeout 5 /Users/fersyvanderzee/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node server.js)"
+    ]
+  }
+}

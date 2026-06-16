@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Find Buddies — Surface</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="nav"></div>
+
+<div class="page stack">
+  <!-- Header -->
+  <div>
+    <h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:34px;color:#15323D;line-height:1.1;">Find a buddy</h1>
+    <p class="text-muted" style="margin-top:5px;font-size:14.5px;">Search for divers and connect with people near your level.</p>
+  </div>
+
+  <!-- Search -->
+  <div class="card card-p">
+    <div style="position:relative;">
+      <svg style="position:absolute;left:14px;top:50%;transform:translateY(-50%);" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="#9AAEB7" stroke-width="2"/><path d="m16 16 4 4" stroke="#9AAEB7" stroke-width="2" stroke-linecap="round"/></svg>
+      <input class="input" type="text" id="searchInput" placeholder="Search by username…" style="padding-left:40px;">
+    </div>
+    <div id="searchResults" class="hidden" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- Pending received requests -->
+  <div id="requestsSection" class="hidden card card-p">
+    <div class="flex items-center gap-2" style="margin-bottom:14px;">
+      <span style="font-size:15px;font-weight:600;color:#15323D;">Buddy Requests</span>
+      <span id="reqCount" style="background:linear-gradient(135deg,#2E7D97,#1C5A72);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;"></span>
+    </div>
+    <div id="requestsList"></div>
+  </div>
+
+  <!-- Buddy list -->
+  <div class="card card-p">
+    <div class="flex items-center" style="justify-content:space-between;margin-bottom:14px;">
+      <span style="font-size:15px;font-weight:600;color:#15323D;">My Buddies <span class="text-muted" id="buddyCountLabel" style="font-weight:400;"></span></span>
+    </div>
+    <div id="buddyList">
+      <div class="skeleton" style="height:52px;margin-bottom:8px;border-radius:14px;"></div>
+      <div class="skeleton" style="height:52px;border-radius:14px;"></div>
+    </div>
+  </div>
+
+  <!-- Sent requests -->
+  <div id="sentSection" class="hidden card card-p">
+    <div style="font-size:13px;font-weight:600;color:#93A8B1;text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px;">Pending Sent Requests</div>
+    <div id="sentList"></div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+Auth.require();
+renderNav('buddies');
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+let buddies = [], received = [], sent = [];
+
+function userRow(user, actionHtml) {
+  return `<div class="flex items-center gap-3" style="padding:11px 0;border-bottom:1px solid #F0F5F7;" id="urow-${user.id}">
+    <a href="/profile.html?id=${user.id}" style="flex-shrink:0;">${fmt.avatar(user.username, user.avatar_color, 44)}</a>
+    <div class="flex-1 truncate">
+      <a href="/profile.html?id=${user.id}" style="font-weight:600;font-size:15px;color:#15323D;text-decoration:none;display:block;">${escHtml(user.username)}</a>
+      ${user.location ? `<div style="font-size:12.5px;color:#93A8B1;margin-top:1px;">${escHtml(user.location)}</div>` : ''}
+      ${user.bio ? `<div style="font-size:13px;color:#7C95A0;margin-top:2px;" class="truncate">${escHtml(user.bio)}</div>` : ''}
+    </div>
+    <div style="flex-shrink:0;">${actionHtml}</div>
+  </div>`;
+}
+
+function renderBuddyList() {
+  const el = document.getElementById('buddyList');
+  document.getElementById('buddyCountLabel').textContent = `(${buddies.length})`;
+  if (!buddies.length) {
+    el.innerHTML = `<div style="text-align:center;padding:36px 16px;">
+      <div style="font-family:'Instrument Serif',Georgia,serif;font-size:44px;color:#D0DEE3;line-height:1;margin-bottom:10px;">∿</div>
+      <div style="font-size:14.5px;font-weight:600;color:#7C95A0;">No buddies yet</div>
+      <div style="font-size:13px;color:#93A8B1;margin-top:4px;">Search above to connect with other divers</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = buddies.map(b => userRow(b, `<button class="btn btn-danger btn-sm" onclick="removeBuddy(${b.id})">Remove</button>`)).join('');
+}
+
+function renderRequests() {
+  const sec = document.getElementById('requestsSection');
+  if (!received.length) { sec.classList.add('hidden'); return; }
+  sec.classList.remove('hidden');
+  document.getElementById('reqCount').textContent = received.length;
+  document.getElementById('requestsList').innerHTML = received.map(r => userRow(
+    { id: r.sender_id, username: r.username, bio: r.bio, avatar_color: r.avatar_color },
+    `<div class="flex gap-2">
+      <button class="btn btn-primary btn-sm" onclick="respond(${r.id}, 'accepted', ${r.sender_id}, '${escHtml(r.username)}', '${r.avatar_color}')">Accept</button>
+      <button class="btn btn-secondary btn-sm" onclick="respond(${r.id}, 'rejected', ${r.sender_id})">Decline</button>
+    </div>`
+  )).join('');
+}
+
+function renderSent() {
+  const sec = document.getElementById('sentSection');
+  if (!sent.length) { sec.classList.add('hidden'); return; }
+  sec.classList.remove('hidden');
+  document.getElementById('sentList').innerHTML = sent.map(r => userRow(
+    { id: r.receiver_id, username: r.username, avatar_color: r.avatar_color },
+    `<span class="btn btn-secondary btn-sm" style="cursor:default;opacity:0.7;">Pending</span>`
+  )).join('');
+}
+
+async function load() {
+  try {
+    [buddies, { received, sent }] = await Promise.all([
+      api.get('/buddies'),
+      api.get('/buddies/requests'),
+    ]);
+    renderBuddyList();
+    renderRequests();
+    renderSent();
+  } catch { document.getElementById('buddyList').innerHTML = '<div class="text-muted text-sm" style="padding:16px 0;">Failed to load</div>'; }
+}
+
+async function removeBuddy(userId) {
+  if (!confirm('Remove this buddy?')) return;
+  try {
+    await api.del(`/buddies/${userId}`);
+    buddies = buddies.filter(b => b.id !== userId);
+    renderBuddyList();
+  } catch {}
+}
+
+async function respond(reqId, status, senderId, username, color) {
+  try {
+    await api.put(`/buddies/request/${reqId}`, { status });
+    received = received.filter(r => r.id !== reqId);
+    if (status === 'accepted') {
+      buddies.push({ id: senderId, username, avatar_color: color });
+      renderBuddyList();
+    }
+    renderRequests();
+  } catch {}
+}
+
+let searchTimer;
+const sentRequestIds = new Set();
+
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  clearTimeout(searchTimer);
+  const q = e.target.value.trim();
+  const el = document.getElementById('searchResults');
+  if (!q) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  searchTimer = setTimeout(async () => {
+    try {
+      const results = await api.get(`/users/search?q=${encodeURIComponent(q)}`);
+      if (!results.length) {
+        el.innerHTML = `<div style="font-size:13.5px;color:#93A8B1;padding:6px 0;">No divers found matching "${escHtml(q)}"</div>`;
+        el.classList.remove('hidden');
+        return;
+      }
+      el.innerHTML = results.map(u => {
+        const isBuddy = buddies.some(b => b.id === u.id);
+        const requested = sentRequestIds.has(u.id) || sent.some(s => s.receiver_id === u.id);
+        let action = '';
+        if (isBuddy) action = `<span class="btn btn-secondary btn-sm" style="cursor:default;">Buddy ✓</span>`;
+        else if (requested) action = `<span class="btn btn-secondary btn-sm" style="cursor:default;opacity:0.7;">Sent</span>`;
+        else action = `<button class="btn btn-primary btn-sm" onclick="sendRequest(${u.id}, this)">Connect</button>`;
+        return userRow(u, action);
+      }).join('');
+      el.classList.remove('hidden');
+    } catch {}
+  }, 300);
+});
+
+async function sendRequest(userId, btn) {
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await api.post(`/buddies/request/${userId}`);
+    sentRequestIds.add(userId);
+    btn.textContent = 'Sent';
+    btn.className = 'btn btn-secondary btn-sm';
+    btn.style.cursor = 'default';
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Connect';
+    alert(e.error || 'Failed to send request');
+  }
+}
+
+load();
+</script>
+</body>
+</html>
