@@ -40,6 +40,16 @@ const api = {
   post(path, body) { return this.request('POST',   path, body); },
   put(path, body)  { return this.request('PUT',    path, body); },
   del(path)        { return this.request('DELETE', path); },
+  async upload(path, formData) {
+    const headers = {};
+    const token = Auth.getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`/api${path}`, { method: 'POST', headers, body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { Auth.logout(); throw data; }
+    if (!res.ok) throw data;
+    return data;
+  },
 };
 
 // ─── Avatar gradient map ──────────────────────────────────────────────────────
@@ -84,7 +94,11 @@ const fmt = {
   date(dateStr) {
     return new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   },
-  avatar(username, color, size = 36) {
+  avatar(username, color, size = 36, avatarUrl = null) {
+    if (avatarUrl) {
+      const br = Math.round(size * 0.29);
+      return `<img src="${avatarUrl}" style="width:${size}px;height:${size}px;border-radius:${br}px;object-fit:cover;" alt="">`;
+    }
     const fontSize = Math.round(size * 0.38);
     const grad = avatarGradient(color);
     const initials = (username || '?').slice(0, 2).toUpperCase();
@@ -102,6 +116,9 @@ function renderNav(activePage) {
 
   const grad = avatarGradient(user.avatar_color);
   const initials = (user.username || '?').slice(0, 2).toUpperCase();
+  const navAvatarHtml = user.avatar
+    ? `<img src="${user.avatar}" style="width:30px;height:30px;border-radius:9px;object-fit:cover;" alt="">`
+    : `<div class="avatar" style="width:30px;height:30px;background:${grad};font-size:11px;">${initials}</div>`;
 
   navEl.innerHTML = `
     <nav>
@@ -126,7 +143,7 @@ function renderNav(activePage) {
         </div>
         <div style="position:relative;margin-left:8px;">
           <button id="umBtn" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:6px 10px;border-radius:999px;transition:background .15s;" onmouseover="this.style.background='rgba(46,125,151,0.07)'" onmouseout="this.style.background=''">
-            <div class="avatar" style="width:30px;height:30px;background:${grad};font-size:11px;">${initials}</div>
+            ${navAvatarHtml}
             <span style="font-size:13.5px;font-weight:500;color:#34505B;">${user.username}</span>
             <svg width="13" height="13" fill="none" stroke="#93A8B1" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
           </button>
@@ -158,7 +175,7 @@ function renderNav(activePage) {
         if (!results.length) { dropdown.classList.add('hidden'); return; }
         dropdown.innerHTML = results.map(u => `
           <a href="/profile.html?id=${u.id}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;text-decoration:none;color:#34505B;transition:background .15s;" onmouseover="this.style.background='#F4F9FB'" onmouseout="this.style.background=''">
-            ${fmt.avatar(u.username, u.avatar_color, 28)}
+            ${fmt.avatar(u.username, u.avatar_color, 28, u.avatar || null)}
             <span style="font-size:13.5px;font-weight:500;">${u.username}</span>
           </a>
         `).join('');

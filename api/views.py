@@ -50,6 +50,7 @@ def user_dict(user):
         'bio': user.bio,
         'location': user.location,
         'avatar_color': user.avatar_color,
+        'avatar': user.avatar,
         'created_at': user.created_at.isoformat() if user.created_at else None,
     }
 
@@ -134,6 +135,34 @@ def me(request):
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
+@csrf_exempt
+@require_auth
+def upload_avatar(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    file = request.FILES.get('avatar')
+    if not file:
+        return JsonResponse({'error': 'No file provided'}, status=400)
+    if file.size > 5 * 1024 * 1024:
+        return JsonResponse({'error': 'File too large (max 5 MB)'}, status=400)
+    ct = (file.content_type or '').split(';')[0].strip()
+    ext = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp'}.get(ct)
+    if not ext:
+        return JsonResponse({'error': 'File must be a JPEG, PNG, GIF, or WebP image'}, status=400)
+    avatars_dir = PUBLIC_DIR / 'avatars'
+    avatars_dir.mkdir(exist_ok=True)
+    for old in avatars_dir.glob(f"{request.user_id}.*"):
+        old.unlink(missing_ok=True)
+    dest = avatars_dir / f"{request.user_id}.{ext}"
+    with open(dest, 'wb') as f:
+        for chunk in file.chunks():
+            f.write(chunk)
+    avatar_url = f"/avatars/{request.user_id}.{ext}"
+    User.objects.filter(id=request.user_id).update(avatar=avatar_url)
+    user = User.objects.get(id=request.user_id)
+    return JsonResponse(user_dict(user))
+
+
 @require_auth
 def search_users(request):
     q = (request.GET.get('q') or '').strip()
@@ -142,7 +171,7 @@ def search_users(request):
     users = User.objects.filter(username__icontains=q).exclude(id=request.user_id)[:10]
     return JsonResponse([{
         'id': u.id, 'username': u.username, 'bio': u.bio,
-        'location': u.location, 'avatar_color': u.avatar_color,
+        'location': u.location, 'avatar_color': u.avatar_color, 'avatar': u.avatar,
     } for u in users], safe=False)
 
 
@@ -184,7 +213,7 @@ def get_user(request, id):
 
 POSTS_SELECT = """
     SELECT p.id, p.user_id, p.content, p.created_at,
-           u.username, u.avatar_color,
+           u.username, u.avatar_color, u.avatar,
            (SELECT COUNT(*) FROM post_likes WHERE post_id=p.id) AS like_count,
            (SELECT COUNT(*) FROM comments   WHERE post_id=p.id) AS comment_count,
            (SELECT COUNT(*) FROM post_likes WHERE post_id=p.id AND user_id=%s) AS user_liked
@@ -278,6 +307,7 @@ def comments(request, id):
             'id': c.id, 'post_id': c.post_id, 'user_id': c.user_id,
             'content': c.content, 'created_at': c.created_at.isoformat(),
             'username': c.user.username, 'avatar_color': c.user.avatar_color,
+            'avatar': c.user.avatar,
         } for c in result], safe=False)
     if request.method == 'POST':
         data = body(request)
@@ -291,6 +321,7 @@ def comments(request, id):
             'id': c.id, 'post_id': c.post_id, 'user_id': c.user_id,
             'content': c.content, 'created_at': c.created_at.isoformat(),
             'username': user.username, 'avatar_color': user.avatar_color,
+            'avatar': user.avatar,
         })
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
@@ -354,7 +385,7 @@ def dive_detail(request, id):
 def buddies(request):
     uid = request.user_id
     sql = """
-        SELECT u.id, u.username, u.bio, u.location, u.avatar_color, br.created_at AS buddy_since
+        SELECT u.id, u.username, u.bio, u.location, u.avatar_color, u.avatar, br.created_at AS buddy_since
         FROM buddy_requests br
         JOIN users u ON (CASE WHEN br.sender_id=%s THEN br.receiver_id ELSE br.sender_id END) = u.id
         WHERE (br.sender_id=%s OR br.receiver_id=%s) AND br.status='accepted'
@@ -372,20 +403,22 @@ def buddy_requests_list(request):
     received = list(BuddyRequest.objects.filter(receiver_id=uid, status='pending')
                     .select_related('sender').order_by('-created_at').values(
                         'id', 'sender_id', 'created_at',
-                        'sender__username', 'sender__bio', 'sender__avatar_color'))
+                        'sender__username', 'sender__bio', 'sender__avatar_color', 'sender__avatar'))
     for r in received:
         r['username'] = r.pop('sender__username')
         r['bio'] = r.pop('sender__bio')
         r['avatar_color'] = r.pop('sender__avatar_color')
+        r['avatar'] = r.pop('sender__avatar')
         r['created_at'] = r['created_at'].isoformat() if r['created_at'] else None
 
     sent = list(BuddyRequest.objects.filter(sender_id=uid, status='pending')
                 .select_related('receiver').order_by('-created_at').values(
                     'id', 'receiver_id', 'created_at',
-                    'receiver__username', 'receiver__avatar_color'))
+                    'receiver__username', 'receiver__avatar_color', 'receiver__avatar'))
     for s in sent:
         s['username'] = s.pop('receiver__username')
         s['avatar_color'] = s.pop('receiver__avatar_color')
+        s['avatar'] = s.pop('receiver__avatar')
         s['created_at'] = s['created_at'].isoformat() if s['created_at'] else None
 
     return JsonResponse({'received': received, 'sent': sent})
@@ -444,7 +477,7 @@ def remove_buddy(request, id):
 EVENTS_SELECT = """
     SELECT e.id, e.creator_id, e.title, e.description, e.location,
            e.event_date, e.discipline, e.max_participants, e.created_at,
-           u.username AS creator_name, u.avatar_color AS creator_color,
+           u.username AS creator_name, u.avatar_color AS creator_color, u.avatar AS creator_avatar,
            (SELECT COUNT(*) FROM event_participants WHERE event_id=e.id AND status='going')  AS going_count,
            (SELECT COUNT(*) FROM event_participants WHERE event_id=e.id AND status='maybe')  AS maybe_count,
            (SELECT status  FROM event_participants WHERE event_id=e.id AND user_id=%s)       AS user_status

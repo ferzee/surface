@@ -54,6 +54,9 @@ function render() {
 
   const coverGrad = avatarGradient(profile.avatar_color);
   const initials = (profile.username || '?').slice(0, 2).toUpperCase();
+  const profileAvatarHtml = profile.avatar
+    ? `<div style="width:76px;height:76px;border-radius:22px;overflow:hidden;border:4px solid #fff;box-shadow:0 4px 14px rgba(14,42,51,0.14);"><img src="${escHtml(profile.avatar)}" style="width:100%;height:100%;object-fit:cover;"></div>`
+    : `<div style="width:76px;height:76px;border-radius:22px;background:${coverGrad};border:4px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:26px;box-shadow:0 4px 14px rgba(14,42,51,0.14);">${initials}</div>`;
 
   const page = document.getElementById('profilePage');
   page.innerHTML = `
@@ -63,7 +66,7 @@ function render() {
         <div style="position:absolute;inset:0;background:radial-gradient(200px 100px at 80% 20%,rgba(255,255,255,0.18),transparent);"></div>
       </div>
       <div style="padding:0 20px 20px;margin-top:-38px;position:relative;">
-        <div style="width:76px;height:76px;border-radius:22px;background:${coverGrad};border:4px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:26px;box-shadow:0 4px 14px rgba(14,42,51,0.14);">${initials}</div>
+        ${profileAvatarHtml}
         <div class="flex items-start" style="justify-content:space-between;margin-top:12px;flex-wrap:wrap;gap:10px;">
           <div>
             <h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:28px;color:#15323D;line-height:1.1;">${escHtml(profile.username)}</h1>
@@ -184,7 +187,7 @@ function postRow(post) {
   const isPostOwn = post.user_id === me.id;
   return `<div style="padding:16px;border-bottom:1px solid #F0F5F7;">
     <div class="flex items-start gap-3">
-      ${fmt.avatar(post.username, post.avatar_color, 34)}
+      ${fmt.avatar(post.username, post.avatar_color, 34, post.avatar || null)}
       <div class="flex-1" style="min-width:0;">
         <div class="flex" style="justify-content:space-between;align-items:center;">
           <div>
@@ -264,6 +267,11 @@ async function handleBuddyAction() {
 }
 
 function openEditModal() {
+  const coverGrad = avatarGradient(profile.avatar_color);
+  const initials = (profile.username || '?').slice(0, 2).toUpperCase();
+  const currentAvatarHtml = profile.avatar
+    ? `<img src="${escHtml(profile.avatar)}" style="width:100%;height:100%;object-fit:cover;">`
+    : initials;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
@@ -271,6 +279,17 @@ function openEditModal() {
       <div class="modal-header">
         <span class="modal-title">Edit profile</span>
         <button class="modal-close" id="editClose">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="label">Photo</label>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div id="avatarPreview" style="width:60px;height:60px;border-radius:17px;overflow:hidden;background:${coverGrad};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:22px;flex-shrink:0;">${currentAvatarHtml}</div>
+          <div>
+            <label class="btn btn-secondary btn-sm" for="avatarInput" style="cursor:pointer;display:inline-block;">Change photo</label>
+            <input type="file" id="avatarInput" accept="image/*" style="display:none;">
+            <div style="font-size:12px;color:#93A8B1;margin-top:5px;">JPG, PNG or WebP · max 5 MB</div>
+          </div>
+        </div>
       </div>
       <div class="form-group">
         <label class="label">Bio</label>
@@ -292,16 +311,31 @@ function openEditModal() {
   overlay.querySelector('#editClose').addEventListener('click', close);
   overlay.querySelector('#editCancel').addEventListener('click', close);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('#avatarInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      overlay.querySelector('#avatarPreview').innerHTML = `<img src="${ev.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
+    };
+    reader.readAsDataURL(file);
+  });
   overlay.querySelector('#editSave').addEventListener('click', async () => {
     const btn = overlay.querySelector('#editSave');
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
+      const fileInput = overlay.querySelector('#avatarInput');
+      if (fileInput.files[0]) {
+        const formData = new FormData();
+        formData.append('avatar', fileInput.files[0]);
+        await api.upload('/users/me/avatar', formData);
+      }
       const updated = await api.put('/users/me', {
         bio:      overlay.querySelector('#editBio').value,
         location: overlay.querySelector('#editLoc').value,
       });
-      profile = { ...profile, bio: updated.bio, location: updated.location };
-      Auth.set({ ...me, bio: updated.bio, location: updated.location }, Auth.getToken());
+      profile = { ...profile, ...updated };
+      Auth.set({ ...me, ...updated }, Auth.getToken());
       render();
       close();
     } catch(e) {

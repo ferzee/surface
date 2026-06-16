@@ -6,6 +6,7 @@ urlpatterns = [
     path('auth/register', views.register),
     path('auth/login', views.login),
     # Users
+    path('users/me/avatar', views.upload_avatar),
     path('users/me', views.me),
     path('users/search', views.search_users),
     path('users/<int:id>', views.get_user),
