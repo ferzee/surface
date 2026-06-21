@@ -9,6 +9,10 @@ class User(models.Model):
     location = models.TextField(default='')
     avatar_color = models.CharField(max_length=20, default='#0891b2')
     avatar = models.TextField(default='', blank=True)
+    header_color = models.CharField(max_length=20, default='ocean')
+    certifications = models.TextField(default='[]', blank=True)
+    diving_since = models.IntegerField(null=True, blank=True)
+    dive_school = models.TextField(default='', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

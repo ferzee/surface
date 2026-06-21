@@ -54,6 +54,19 @@ const api = {
 
 // ─── Avatar gradient map ──────────────────────────────────────────────────────
 
+const HEADER_GRADIENTS = {
+  ocean:    'linear-gradient(135deg,#86C0D6,#2E6E8E)',
+  teal:     'linear-gradient(135deg,#7FB5C9,#2E7D97)',
+  midnight: 'linear-gradient(135deg,#5B8FAA,#1B4D63)',
+  slate:    'linear-gradient(135deg,#8FAABF,#4A6E89)',
+  seafoam:  'linear-gradient(135deg,#9DC7C3,#3FA39B)',
+  dusk:     'linear-gradient(135deg,#B8D0DA,#6E9BAD)',
+};
+
+function headerGradient(key) {
+  return HEADER_GRADIENTS[key] || HEADER_GRADIENTS.ocean;
+}
+
 function avatarGradient(color) {
   const map = {
     '#0891b2': 'linear-gradient(135deg,#86C0D6,#2E6E8E)',
@@ -100,9 +113,10 @@ const fmt = {
       return `<img src="${avatarUrl}" style="width:${size}px;height:${size}px;border-radius:${br}px;object-fit:cover;" alt="">`;
     }
     const fontSize = Math.round(size * 0.38);
+    const br = Math.round(size * 0.29);
     const grad = avatarGradient(color);
     const initials = (username || '?').slice(0, 2).toUpperCase();
-    return `<div class="avatar" style="width:${size}px;height:${size}px;background:${grad};font-size:${fontSize}px;">${initials}</div>`;
+    return `<div class="avatar" style="width:${size}px;height:${size}px;background:${grad};font-size:${fontSize}px;border-radius:${br}px;">${initials}</div>`;
   },
 };
 
@@ -120,42 +134,71 @@ function renderNav(activePage) {
     ? `<img src="${user.avatar}" style="width:30px;height:30px;border-radius:9px;object-fit:cover;" alt="">`
     : `<div class="avatar" style="width:30px;height:30px;background:${grad};font-size:11px;">${initials}</div>`;
 
+  const brandSvg = `<svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+    <path d="M3 13c2.2 0 2.2-2 4.5-2s2.3 2 4.5 2 2.2-2 4.5-2 2.3 2 4.5 2" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+    <path d="M3 18c2.2 0 2.2-2 4.5-2s2.3 2 4.5 2 2.2-2 4.5-2 2.3 2 4.5 2" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+  </svg>`;
+
   navEl.innerHTML = `
     <nav>
       <div class="nav-inner">
         <a href="/feed.html" class="nav-brand">
-          <div class="nav-brand-icon">
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
-              <path d="M3 13c2.2 0 2.2-2 4.5-2s2.3 2 4.5 2 2.2-2 4.5-2 2.3 2 4.5 2" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
-              <path d="M3 18c2.2 0 2.2-2 4.5-2s2.3 2 4.5 2 2.2-2 4.5-2 2.3 2 4.5 2" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
-            </svg>
-          </div>
+          <div class="nav-brand-icon">${brandSvg}</div>
           Surface
         </a>
-        <div class="flex gap-2" style="margin-left:8px;">
-          <a href="/feed.html"    class="nav-link ${activePage === 'feed'    ? 'active' : ''}">Feed</a>
-          <a href="/buddies.html" class="nav-link ${activePage === 'buddies' ? 'active' : ''}">Find Buddies</a>
-          <a href="/events.html"  class="nav-link ${activePage === 'events'  ? 'active' : ''}">Events</a>
-        </div>
-        <div style="flex:1;max-width:220px;position:relative;margin-left:auto;">
-          <input id="ns" type="text" class="input" style="padding:7px 12px;font-size:13px;border-radius:999px;" placeholder="Search divers…">
-          <div id="nsr" class="card hidden" style="position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:60;overflow:hidden;border-radius:16px;padding:6px 0;"></div>
-        </div>
-        <div style="position:relative;margin-left:8px;">
-          <button id="umBtn" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:6px 10px;border-radius:999px;transition:background .15s;" onmouseover="this.style.background='rgba(46,125,151,0.07)'" onmouseout="this.style.background=''">
-            ${navAvatarHtml}
-            <span style="font-size:13.5px;font-weight:500;color:#34505B;">${user.username}</span>
-            <svg width="13" height="13" fill="none" stroke="#93A8B1" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
-          </button>
-          <div id="um" class="card hidden" style="position:absolute;right:0;top:calc(100% + 6px);width:168px;overflow:hidden;z-index:60;padding:6px 0;border-radius:18px;">
-            <a href="/profile.html?id=${user.id}" style="display:block;padding:10px 16px;font-size:14px;color:#34505B;text-decoration:none;transition:background .15s;" onmouseover="this.style.background='#F4F9FB'" onmouseout="this.style.background=''">My Profile</a>
-            <button id="logoutBtn" style="width:100%;text-align:left;padding:10px 16px;font-size:14px;color:#c0392b;background:none;border:none;cursor:pointer;font-family:inherit;transition:background .15s;" onmouseover="this.style.background='#FDF3F3'" onmouseout="this.style.background=''">Sign Out</button>
+
+        <!-- Desktop: links + search + user menu -->
+        <div class="nav-desktop">
+          <div class="flex gap-2" style="margin-left:8px;">
+            <a href="/feed.html"    class="nav-link ${activePage === 'feed'    ? 'active' : ''}">Feed</a>
+            <a href="/buddies.html" class="nav-link ${activePage === 'buddies' ? 'active' : ''}">Find Buddies</a>
+            <a href="/events.html"  class="nav-link ${activePage === 'events'  ? 'active' : ''}">Events</a>
+          </div>
+          <div style="flex:1;max-width:220px;position:relative;margin-left:auto;">
+            <input id="ns" type="text" class="input" style="padding:7px 12px;font-size:13px;border-radius:999px;" placeholder="Search divers…">
+            <div id="nsr" class="card hidden" style="position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:60;overflow:hidden;border-radius:16px;padding:6px 0;"></div>
+          </div>
+          <div style="position:relative;margin-left:8px;">
+            <button id="umBtn" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:6px 10px;border-radius:999px;transition:background .15s;" onmouseover="this.style.background='rgba(46,125,151,0.07)'" onmouseout="this.style.background=''">
+              ${navAvatarHtml}
+              <span style="font-size:13.5px;font-weight:500;color:#34505B;">${user.username}</span>
+              <svg width="13" height="13" fill="none" stroke="#93A8B1" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="um" class="card hidden" style="position:absolute;right:0;top:calc(100% + 6px);width:168px;overflow:hidden;z-index:60;padding:6px 0;border-radius:18px;">
+              <a href="/profile.html?id=${user.id}" style="display:block;padding:10px 16px;font-size:14px;color:#34505B;text-decoration:none;transition:background .15s;" onmouseover="this.style.background='#F4F9FB'" onmouseout="this.style.background=''">My Profile</a>
+              <button id="logoutBtn" style="width:100%;text-align:left;padding:10px 16px;font-size:14px;color:#c0392b;background:none;border:none;cursor:pointer;font-family:inherit;transition:background .15s;" onmouseover="this.style.background='#FDF3F3'" onmouseout="this.style.background=''">Sign Out</button>
+            </div>
           </div>
         </div>
+
+        <!-- Mobile: hamburger button -->
+        <button id="navHamburger" class="nav-hamburger" aria-label="Toggle menu">
+          <svg id="hamburgerIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Mobile drawer -->
+      <div id="navDrawer" class="nav-mobile-drawer">
+        <div style="position:relative;margin-bottom:12px;">
+          <input id="nsm" type="text" class="input" style="padding:7px 12px;font-size:13px;border-radius:999px;" placeholder="Search divers…">
+          <div id="nsmr" class="card hidden" style="position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:60;overflow:hidden;border-radius:16px;padding:6px 0;"></div>
+        </div>
+        <a href="/feed.html"    class="nav-link nav-link-block ${activePage === 'feed'    ? 'active' : ''}">Feed</a>
+        <a href="/buddies.html" class="nav-link nav-link-block ${activePage === 'buddies' ? 'active' : ''}">Find Buddies</a>
+        <a href="/events.html"  class="nav-link nav-link-block ${activePage === 'events'  ? 'active' : ''}">Events</a>
+        <div style="border-top:1px solid #EEF4F6;margin:10px 0;"></div>
+        <a href="/profile.html?id=${user.id}" style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-radius:14px;text-decoration:none;color:#34505B;font-size:14px;font-weight:500;transition:background .15s;" onmouseover="this.style.background='#F4F9FB'" onmouseout="this.style.background=''">
+          ${navAvatarHtml}
+          <span>${user.username}</span>
+        </a>
+        <button id="logoutBtnM" style="width:100%;text-align:left;padding:8px 14px;font-size:14px;color:#c0392b;background:none;border:none;cursor:pointer;font-family:inherit;border-radius:14px;transition:background .15s;" onmouseover="this.style.background='#FDF3F3'" onmouseout="this.style.background=''">Sign Out</button>
       </div>
     </nav>
   `;
 
+  // Desktop user menu
   document.getElementById('umBtn').addEventListener('click', (e) => {
     e.stopPropagation();
     document.getElementById('um').classList.toggle('hidden');
@@ -163,29 +206,48 @@ function renderNav(activePage) {
   document.addEventListener('click', () => document.getElementById('um')?.classList.add('hidden'));
   document.getElementById('logoutBtn').addEventListener('click', () => Auth.logout());
 
-  let searchTimer;
-  document.getElementById('ns').addEventListener('input', (e) => {
-    clearTimeout(searchTimer);
-    const q = e.target.value.trim();
-    const dropdown = document.getElementById('nsr');
-    if (!q) { dropdown.classList.add('hidden'); return; }
-    searchTimer = setTimeout(async () => {
-      try {
-        const results = await api.get(`/users/search?q=${encodeURIComponent(q)}`);
-        if (!results.length) { dropdown.classList.add('hidden'); return; }
-        dropdown.innerHTML = results.map(u => `
-          <a href="/profile.html?id=${u.id}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;text-decoration:none;color:#34505B;transition:background .15s;" onmouseover="this.style.background='#F4F9FB'" onmouseout="this.style.background=''">
-            ${fmt.avatar(u.username, u.avatar_color, 28, u.avatar || null)}
-            <span style="font-size:13.5px;font-weight:500;">${u.username}</span>
-          </a>
-        `).join('');
-        dropdown.classList.remove('hidden');
-      } catch { dropdown.classList.add('hidden'); }
-    }, 300);
+  // Mobile hamburger
+  const hamburger = document.getElementById('navHamburger');
+  const drawer    = document.getElementById('navDrawer');
+  const icon      = document.getElementById('hamburgerIcon');
+  hamburger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = drawer.classList.toggle('open');
+    icon.innerHTML = open
+      ? `<line x1="4" y1="4" x2="20" y2="20"/><line x1="20" y1="4" x2="4" y2="20"/>`
+      : `<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>`;
   });
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('#ns')) document.getElementById('nsr')?.classList.add('hidden');
-  });
+  document.getElementById('logoutBtnM').addEventListener('click', () => Auth.logout());
+
+  // Shared search — works for both desktop (#ns) and mobile (#nsm) inputs
+  function attachSearch(inputId, dropdownId) {
+    let timer;
+    document.getElementById(inputId)?.addEventListener('input', (e) => {
+      clearTimeout(timer);
+      const q = e.target.value.trim();
+      const dd = document.getElementById(dropdownId);
+      if (!q) { dd.classList.add('hidden'); return; }
+      timer = setTimeout(async () => {
+        try {
+          const results = await api.get(`/users/search?q=${encodeURIComponent(q)}`);
+          if (!results.length) { dd.classList.add('hidden'); return; }
+          dd.innerHTML = results.map(u => `
+            <a href="/profile.html?id=${u.id}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;text-decoration:none;color:#34505B;transition:background .15s;" onmouseover="this.style.background='#F4F9FB'" onmouseout="this.style.background=''">
+              ${fmt.avatar(u.username, u.avatar_color, 28, u.avatar || null)}
+              <span style="font-size:13.5px;font-weight:500;">${u.username}</span>
+            </a>
+          `).join('');
+          dd.classList.remove('hidden');
+        } catch { dd.classList.add('hidden'); }
+      }, 300);
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest(`#${inputId}`)) document.getElementById(dropdownId)?.classList.add('hidden');
+    });
+  }
+
+  attachSearch('ns', 'nsr');
+  attachSearch('nsm', 'nsmr');
 }
 
 // ─── Dive Logger Modal ────────────────────────────────────────────────────────

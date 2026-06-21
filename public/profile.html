@@ -52,11 +52,12 @@ function render() {
   else if (rel.status === 'accepted')                  { buddyBtnLabel = 'Buddies ✓'; buddyBtnClass = 'btn-secondary'; }
   else                                                 { buddyBtnLabel = 'Connect'; buddyBtnClass = 'btn-primary'; }
 
-  const coverGrad = avatarGradient(profile.avatar_color);
+  const coverGrad = headerGradient(profile.header_color);
+  const avatarGrad = avatarGradient(profile.avatar_color);
   const initials = (profile.username || '?').slice(0, 2).toUpperCase();
   const profileAvatarHtml = profile.avatar
     ? `<div style="width:76px;height:76px;border-radius:22px;overflow:hidden;border:4px solid #fff;box-shadow:0 4px 14px rgba(14,42,51,0.14);"><img src="${escHtml(profile.avatar)}" style="width:100%;height:100%;object-fit:cover;"></div>`
-    : `<div style="width:76px;height:76px;border-radius:22px;background:${coverGrad};border:4px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:26px;box-shadow:0 4px 14px rgba(14,42,51,0.14);">${initials}</div>`;
+    : `<div style="width:76px;height:76px;border-radius:22px;background:${avatarGrad};border:4px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:26px;box-shadow:0 4px 14px rgba(14,42,51,0.14);">${initials}</div>`;
 
   const page = document.getElementById('profilePage');
   page.innerHTML = `
@@ -71,7 +72,11 @@ function render() {
           <div>
             <h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:28px;color:#15323D;line-height:1.1;">${escHtml(profile.username)}</h1>
             ${profile.location ? `<div style="display:flex;align-items:center;gap:5px;margin-top:5px;font-size:13.5px;color:#7C95A0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11Z" stroke="#7C95A0" stroke-width="1.7"/></svg>${escHtml(profile.location)}</div>` : ''}
-            <div style="font-size:13.5px;color:#7C95A0;margin-top:8px;"><strong style="color:#15323D;">${profile.buddyCount}</strong> buddies · <strong style="color:#15323D;">${profile.diveCount}</strong> dives</div>
+            ${(profile.diving_since || profile.dive_school) ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:5px;font-size:13.5px;color:#7C95A0;">
+              ${profile.diving_since ? `<span>Diving since <strong style="color:#15323D;">${profile.diving_since}</strong></span>` : ''}
+              ${profile.dive_school ? `<span>${escHtml(profile.dive_school)}</span>` : ''}
+            </div>` : ''}
+            <div style="font-size:13.5px;color:#7C95A0;margin-top:6px;"><strong style="color:#15323D;">${profile.buddyCount}</strong> buddies · <strong style="color:#15323D;">${profile.diveCount}</strong> dives</div>
           </div>
           ${isOwn
             ? `<button class="btn btn-secondary btn-sm" id="editBtn">Edit profile</button>`
@@ -79,6 +84,7 @@ function render() {
           }
         </div>
         ${profile.bio ? `<p style="margin-top:12px;font-size:14.5px;color:#34505B;line-height:1.55;">${escHtml(profile.bio)}</p>` : ''}
+        ${profile.certifications && profile.certifications.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;">${profile.certifications.map(c => `<span style="font-size:12px;font-weight:600;padding:3px 11px;border-radius:999px;background:rgba(46,125,151,0.1);color:#2E7D97;">${escHtml(c)}</span>`).join('')}</div>` : ''}
       </div>
     </div>
 
@@ -266,12 +272,44 @@ async function handleBuddyAction() {
   }
 }
 
+const CERT_GROUPS = [
+  { label: 'AIDA',        items: ['AIDA 2', 'AIDA 3', 'AIDA 4', 'AIDA Instructor'] },
+  { label: 'SSI',         items: ['SSI Level 1', 'SSI Level 2', 'SSI Level 3', 'SSI Instructor'] },
+  { label: 'PADI',        items: ['PADI Freediver', 'PADI Advanced Freediver', 'PADI Master Freediver', 'PADI Instructor'] },
+  { label: 'Molchanovs',  items: ['Molchanovs Wave 1', 'Molchanovs Wave 2', 'Molchanovs Wave 3'] },
+];
+
 function openEditModal() {
-  const coverGrad = avatarGradient(profile.avatar_color);
+  const avatarGrad = avatarGradient(profile.avatar_color);
   const initials = (profile.username || '?').slice(0, 2).toUpperCase();
   const currentAvatarHtml = profile.avatar
     ? `<img src="${escHtml(profile.avatar)}" style="width:100%;height:100%;object-fit:cover;">`
     : initials;
+
+  const headerColorKeys = ['ocean', 'teal', 'midnight', 'slate', 'seafoam', 'dusk'];
+  const headerColorLabels = { ocean: 'Ocean', teal: 'Teal', midnight: 'Midnight', slate: 'Slate', seafoam: 'Seafoam', dusk: 'Dusk' };
+  let selectedHeaderColor = profile.header_color || 'ocean';
+  let selectedCerts = new Set(profile.certifications || []);
+
+  const swatchesHtml = headerColorKeys.map(key => `
+    <button type="button" class="hc-swatch" data-key="${key}" title="${headerColorLabels[key]}"
+      style="width:36px;height:36px;border-radius:10px;border:3px solid ${selectedHeaderColor===key?'#2E7D97':'transparent'};background:${HEADER_GRADIENTS[key]};cursor:pointer;transition:border-color .15s;outline:none;flex-shrink:0;"
+    ></button>
+  `).join('');
+
+  const certGroupsHtml = CERT_GROUPS.map(g => `
+    <div style="margin-bottom:10px;">
+      <div style="font-size:11.5px;font-weight:700;color:#93A8B1;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px;">${g.label}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${g.items.map(item => `
+          <button type="button" class="cert-pill" data-cert="${escHtml(item)}"
+            style="padding:4px 12px;border-radius:999px;font-size:12.5px;font-weight:600;border:1.5px solid ${selectedCerts.has(item)?'#2E7D97':'#DCE7EB'};background:${selectedCerts.has(item)?'rgba(46,125,151,0.1)':'#fff'};color:${selectedCerts.has(item)?'#2E7D97':'#7C95A0'};cursor:pointer;transition:all .15s;font-family:inherit;"
+          >${escHtml(item)}</button>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
@@ -283,13 +321,22 @@ function openEditModal() {
       <div class="form-group">
         <label class="label">Photo</label>
         <div style="display:flex;align-items:center;gap:14px;">
-          <div id="avatarPreview" style="width:60px;height:60px;border-radius:17px;overflow:hidden;background:${coverGrad};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:22px;flex-shrink:0;">${currentAvatarHtml}</div>
+          <div id="avatarPreview" style="width:60px;height:60px;border-radius:17px;overflow:hidden;background:${avatarGrad};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:22px;flex-shrink:0;">${currentAvatarHtml}</div>
           <div>
             <label class="btn btn-secondary btn-sm" for="avatarInput" style="cursor:pointer;display:inline-block;">Change photo</label>
             <input type="file" id="avatarInput" accept="image/*" style="display:none;">
             <div style="font-size:12px;color:#93A8B1;margin-top:5px;">JPG, PNG or WebP · max 5 MB</div>
           </div>
         </div>
+      </div>
+      <div class="form-group">
+        <label class="label">Username</label>
+        <input class="input" type="text" id="editUsername" value="${escHtml(profile.username || '')}" placeholder="Your username">
+      </div>
+      <div class="form-group">
+        <label class="label">Header colour</label>
+        <div id="hcSwatches" style="display:flex;gap:8px;flex-wrap:wrap;">${swatchesHtml}</div>
+        <div id="hcPreview" style="margin-top:10px;height:36px;border-radius:10px;background:${headerGradient(selectedHeaderColor)};transition:background .2s;"></div>
       </div>
       <div class="form-group">
         <label class="label">Bio</label>
@@ -299,6 +346,18 @@ function openEditModal() {
         <label class="label">Location</label>
         <input class="input" type="text" id="editLoc" placeholder="e.g. Dahab, Egypt" value="${escHtml(profile.location || '')}">
       </div>
+      <div class="form-group">
+        <label class="label">Diving since</label>
+        <input class="input" type="number" id="editDivingSince" min="1950" max="${new Date().getFullYear()}" placeholder="e.g. 2018" value="${profile.diving_since || ''}">
+      </div>
+      <div class="form-group">
+        <label class="label">Dive school</label>
+        <input class="input" type="text" id="editDiveSchool" placeholder="e.g. Alchemy Dive Center" value="${escHtml(profile.dive_school || '')}">
+      </div>
+      <div class="form-group">
+        <label class="label">Certifications</label>
+        ${certGroupsHtml}
+      </div>
       <div id="editErr"></div>
       <div class="flex gap-2 mt-3">
         <button class="btn btn-secondary flex-1" id="editCancel">Cancel</button>
@@ -307,6 +366,34 @@ function openEditModal() {
     </div>
   `;
   document.body.appendChild(overlay);
+
+  overlay.querySelectorAll('.hc-swatch').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedHeaderColor = btn.dataset.key;
+      overlay.querySelectorAll('.hc-swatch').forEach(b => {
+        b.style.borderColor = b.dataset.key === selectedHeaderColor ? '#2E7D97' : 'transparent';
+      });
+      overlay.querySelector('#hcPreview').style.background = headerGradient(selectedHeaderColor);
+    });
+  });
+
+  overlay.querySelectorAll('.cert-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cert = btn.dataset.cert;
+      if (selectedCerts.has(cert)) {
+        selectedCerts.delete(cert);
+        btn.style.borderColor = '#DCE7EB';
+        btn.style.background = '#fff';
+        btn.style.color = '#7C95A0';
+      } else {
+        selectedCerts.add(cert);
+        btn.style.borderColor = '#2E7D97';
+        btn.style.background = 'rgba(46,125,151,0.1)';
+        btn.style.color = '#2E7D97';
+      }
+    });
+  });
+
   const close = () => overlay.remove();
   overlay.querySelector('#editClose').addEventListener('click', close);
   overlay.querySelector('#editCancel').addEventListener('click', close);
@@ -322,6 +409,10 @@ function openEditModal() {
   });
   overlay.querySelector('#editSave').addEventListener('click', async () => {
     const btn = overlay.querySelector('#editSave');
+    const errEl = overlay.querySelector('#editErr');
+    errEl.innerHTML = '';
+    const newUsername = overlay.querySelector('#editUsername').value.trim();
+    if (!newUsername) { errEl.innerHTML = '<div class="alert-error">Username cannot be empty</div>'; return; }
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
       const fileInput = overlay.querySelector('#avatarInput');
@@ -330,16 +421,22 @@ function openEditModal() {
         formData.append('avatar', fileInput.files[0]);
         await api.upload('/users/me/avatar', formData);
       }
+      const dsVal = overlay.querySelector('#editDivingSince').value;
       const updated = await api.put('/users/me', {
-        bio:      overlay.querySelector('#editBio').value,
-        location: overlay.querySelector('#editLoc').value,
+        username:      newUsername,
+        bio:           overlay.querySelector('#editBio').value,
+        location:      overlay.querySelector('#editLoc').value,
+        header_color:  selectedHeaderColor,
+        certifications: [...selectedCerts],
+        diving_since:  dsVal ? parseInt(dsVal) : null,
+        dive_school:   overlay.querySelector('#editDiveSchool').value,
       });
       profile = { ...profile, ...updated };
       Auth.set({ ...me, ...updated }, Auth.getToken());
       render();
       close();
     } catch(e) {
-      overlay.querySelector('#editErr').innerHTML = `<div class="alert-error">${e.error || 'Save failed'}</div>`;
+      errEl.innerHTML = `<div class="alert-error">${e.error || 'Save failed'}</div>`;
       btn.disabled = false; btn.textContent = 'Save';
     }
   });

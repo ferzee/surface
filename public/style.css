@@ -8,6 +8,7 @@ body {
   background: radial-gradient(1200px 700px at 50% -8%, #F1F7FA, #DCE8ED);
   min-height: 100vh;
   color: #15323D;
+  overflow-x: hidden;
 }
 
 @keyframes srise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -82,6 +83,26 @@ select.input { cursor: pointer; }
   background: linear-gradient(155deg, #86C0D6, #2E6E8E);
   display: flex; align-items: center; justify-content: center;
 }
+.nav-desktop { display: flex; align-items: center; flex: 1; }
+.nav-hamburger {
+  display: none; background: none; border: none; cursor: pointer;
+  padding: 6px 8px; border-radius: 10px; color: #5B7682;
+  transition: background .15s; margin-left: auto; flex-shrink: 0;
+}
+.nav-hamburger:hover { background: rgba(46,125,151,0.08); }
+.nav-mobile-drawer {
+  display: none;
+  padding: 10px 16px 18px;
+  border-top: 1px solid rgba(213,228,235,0.7);
+  background: rgba(247,251,252,0.98);
+}
+.nav-mobile-drawer.open { display: block; }
+.nav-link-block { display: block !important; border-radius: 14px; margin-bottom: 2px; }
+
+@media (max-width: 767px) {
+  .nav-desktop { display: none !important; }
+  .nav-hamburger { display: flex; align-items: center; justify-content: center; }
+}
 
 /* ── Discipline badges ───────────────────────────────────────────────────── */
 .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
@@ -90,7 +111,7 @@ select.input { cursor: pointer; }
 .badge-depth   { background: rgba(46,110,142,0.12);  color: #2E6E8E; }
 
 /* ── Avatar ──────────────────────────────────────────────────────────────── */
-.avatar { border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; color: #fff; flex-shrink: 0; }
+.avatar { display: flex; align-items: center; justify-content: center; font-weight: 600; color: #fff; flex-shrink: 0; }
 
 /* ── Tabs ────────────────────────────────────────────────────────────────── */
 .tabs { display: flex; gap: 4px; padding: 4px; background: #EEF4F6; border-radius: 16px; }

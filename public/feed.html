@@ -39,7 +39,7 @@
 <script>
 const me = Auth.require();
 renderNav('feed');
-document.getElementById('myAvatar').innerHTML = fmt.avatar(me.username, me.avatar_color, 38);
+document.getElementById('myAvatar').innerHTML = fmt.avatar(me.username, me.avatar_color, 38, me.avatar || null);
 
 let posts = [];
 
@@ -53,7 +53,7 @@ function renderPost(post) {
   return `
     <div class="post-card animate-in" id="post-${post.id}">
       <div class="flex gap-3 items-start">
-        <a href="/profile.html?id=${post.user_id}" style="flex-shrink:0;">${fmt.avatar(post.username, post.avatar_color, 42)}</a>
+        <a href="/profile.html?id=${post.user_id}" style="flex-shrink:0;text-decoration:none;">${fmt.avatar(post.username, post.avatar_color, 42, post.avatar || null)}</a>
         <div class="flex-1" style="min-width:0;">
           <div class="flex items-center gap-2" style="justify-content:space-between;">
             <div>
@@ -162,7 +162,7 @@ function renderComments(postId) {
     </div>
   `).join('') + `
     <div class="flex gap-2 items-center" style="margin-top:8px;">
-      ${fmt.avatar(me.username, me.avatar_color, 30)}
+      ${fmt.avatar(me.username, me.avatar_color, 30, me.avatar || null)}
       <input type="text" class="input flex-1" style="padding:7px 12px;font-size:13.5px;border-radius:999px;" placeholder="Write a comment…" id="ci-${postId}">
       <button class="btn btn-primary btn-sm" onclick="submitComment(${postId})" style="padding:7px 14px;">Post</button>
     </div>

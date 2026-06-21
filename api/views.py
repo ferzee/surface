@@ -15,6 +15,12 @@ from .models import (BuddyRequest, Comment, Dive, Event, EventParticipant,
                      Post, PostLike, User)
 
 COLORS = ['#0891b2', '#0e7490', '#1d4ed8', '#7c3aed', '#059669', '#b45309', '#be185d']
+CERT_OPTIONS = {
+    'AIDA 2', 'AIDA 3', 'AIDA 4', 'AIDA Instructor',
+    'SSI Level 1', 'SSI Level 2', 'SSI Level 3', 'SSI Instructor',
+    'PADI Freediver', 'PADI Advanced Freediver', 'PADI Master Freediver', 'PADI Instructor',
+    'Molchanovs Wave 1', 'Molchanovs Wave 2', 'Molchanovs Wave 3',
+}
 PUBLIC_DIR = Path(__file__).resolve().parent.parent / 'public'
 
 
@@ -42,7 +48,14 @@ def require_auth(view_func):
     return wrapper
 
 
+HEADER_COLOR_KEYS = {'ocean', 'teal', 'midnight', 'slate', 'seafoam', 'dusk'}
+
+
 def user_dict(user):
+    try:
+        certs = json.loads(user.certifications) if user.certifications else []
+    except (ValueError, TypeError):
+        certs = []
     return {
         'id': user.id,
         'username': user.username,
@@ -51,6 +64,10 @@ def user_dict(user):
         'location': user.location,
         'avatar_color': user.avatar_color,
         'avatar': user.avatar,
+        'header_color': user.header_color,
+        'certifications': certs,
+        'diving_since': user.diving_since,
+        'dive_school': user.dive_school,
         'created_at': user.created_at.isoformat() if user.created_at else None,
     }
 
@@ -126,10 +143,32 @@ def me(request):
         return JsonResponse(user_dict(user))
     if request.method == 'PUT':
         data = body(request)
-        User.objects.filter(id=request.user_id).update(
-            bio=data.get('bio') or '',
-            location=data.get('location') or '',
-        )
+        update_fields = {
+            'bio': data.get('bio') or '',
+            'location': data.get('location') or '',
+            'dive_school': data.get('dive_school') or '',
+        }
+        new_username = (data.get('username') or '').strip()
+        if new_username:
+            if User.objects.filter(username=new_username).exclude(id=request.user_id).exists():
+                return JsonResponse({'error': 'Username already taken'}, status=400)
+            update_fields['username'] = new_username
+        hc = data.get('header_color')
+        if hc and hc in HEADER_COLOR_KEYS:
+            update_fields['header_color'] = hc
+        certs = data.get('certifications')
+        if isinstance(certs, list):
+            update_fields['certifications'] = json.dumps([c for c in certs if c in CERT_OPTIONS])
+        ds = data.get('diving_since')
+        if ds is not None:
+            try:
+                year = int(ds)
+                update_fields['diving_since'] = year if 1950 <= year <= 2100 else None
+            except (ValueError, TypeError):
+                update_fields['diving_since'] = None
+        elif 'diving_since' in data:
+            update_fields['diving_since'] = None
+        User.objects.filter(id=request.user_id).update(**update_fields)
         user = User.objects.get(id=request.user_id)
         return JsonResponse(user_dict(user))
     return JsonResponse({'error': 'Method not allowed'}, status=405)
