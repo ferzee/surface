@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inbox — Surface</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .inbox-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 14px 0; border-bottom: 1px solid #F0F5F7; cursor: pointer;
+      transition: background .12s; border-radius: 0;
+    }
+    .inbox-item:last-child { border-bottom: none; }
+    .inbox-item.unread .inbox-text { font-weight: 600; }
+    .inbox-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: linear-gradient(135deg,#2E7D97,#1C5A72);
+      flex-shrink: 0; margin-top: 6px;
+    }
+    .inbox-dot-placeholder { width: 8px; flex-shrink: 0; }
+    .inbox-text { font-size: 14px; color: #34505B; line-height: 1.45; flex: 1; }
+    .inbox-excerpt {
+      font-size: 13px; color: #7C95A0; margin-top: 3px;
+      background: #F4F9FB; border-radius: 8px; padding: 5px 9px; display: inline-block;
+    }
+    .inbox-time { font-size: 12px; color: #93A8B1; white-space: nowrap; margin-top: 2px; }
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 18px; }
+    .tab {
+      flex: 1; padding: 9px 0; text-align: center; font-size: 14px; font-weight: 600;
+      color: #7C95A0; border-radius: 14px; cursor: pointer; border: none;
+      background: transparent; font-family: inherit; transition: all .15s;
+    }
+    .tab.active { background: #fff; color: #2E7D97; box-shadow: 0 2px 8px rgba(21,50,61,0.07); }
+    .convo-bubble {
+      max-width: 75%; padding: 9px 14px; border-radius: 18px;
+      font-size: 14px; line-height: 1.45; word-break: break-word;
+    }
+    .convo-bubble.mine {
+      background: linear-gradient(135deg,#2E7D97,#1C5A72); color: #fff;
+      border-bottom-right-radius: 4px; margin-left: auto;
+    }
+    .convo-bubble.theirs {
+      background: #F0F5F7; color: #15323D;
+      border-bottom-left-radius: 4px;
+    }
+    .convo-row { display: flex; margin-bottom: 8px; }
+    .convo-row.mine { justify-content: flex-end; }
+    #convoPanel { display: none; }
+    #convoPanel.open { display: flex; flex-direction: column; }
+    .unread-badge {
+      background: linear-gradient(135deg,#2E7D97,#1C5A72); color: #fff;
+      font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+      margin-left: 6px;
+    }
+  </style>
+</head>
+<body>
+<div id="nav"></div>
+
+<div class="page stack">
+  <div>
+    <h1 style="font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:34px;color:#15323D;line-height:1.1;">Inbox</h1>
+    <p class="text-muted" style="margin-top:5px;font-size:14.5px;">Messages, buddy requests, and activity.</p>
+  </div>
+
+  <!-- Conversation panel (shown when a DM convo is open) -->
+  <div id="convoPanel" class="card" style="flex-direction:column;">
+    <div style="display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid #F0F5F7;">
+      <button id="convoBack" style="background:none;border:none;cursor:pointer;padding:4px;color:#5B7682;" title="Back">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
+      </button>
+      <div id="convoHeader"></div>
+    </div>
+    <div id="convoMessages" style="flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;min-height:200px;max-height:400px;"></div>
+    <div style="padding:14px 18px;border-top:1px solid #F0F5F7;display:flex;gap:10px;">
+      <textarea id="msgInput" class="input" rows="1" placeholder="Write a message…" style="resize:none;flex:1;padding:9px 14px;font-size:14px;border-radius:999px;"></textarea>
+      <button id="msgSend" class="btn btn-primary btn-sm" style="flex-shrink:0;">Send</button>
+    </div>
+  </div>
+
+  <!-- Main inbox (tabs) -->
+  <div id="mainInbox" class="card card-p">
+    <div class="tab-bar">
+      <button class="tab active" id="tabNotifs" onclick="switchTab('notifs')">Notifications <span id="notifBadge"></span></button>
+      <button class="tab" id="tabMessages" onclick="switchTab('messages')">Messages <span id="msgBadge"></span></button>
+    </div>
+
+    <div id="panelNotifs">
+      <div id="notifList">
+        <div class="skeleton" style="height:52px;margin-bottom:10px;border-radius:14px;"></div>
+        <div class="skeleton" style="height:52px;border-radius:14px;"></div>
+      </div>
+    </div>
+
+    <div id="panelMessages" style="display:none;">
+      <div id="convoList">
+        <div class="skeleton" style="height:52px;margin-bottom:10px;border-radius:14px;"></div>
+        <div class="skeleton" style="height:52px;border-radius:14px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+const me = Auth.require();
+renderNav('inbox');
+
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+let notifs = [], convos = [];
+let activeConvoId = null;
+let activePartnerUsername = '', activePartnerColor = '', activePartnerAvatar = '';
+
+function switchTab(tab) {
+  document.getElementById('tabNotifs').classList.toggle('active', tab === 'notifs');
+  document.getElementById('tabMessages').classList.toggle('active', tab === 'messages');
+  document.getElementById('panelNotifs').style.display  = tab === 'notifs'    ? '' : 'none';
+  document.getElementById('panelMessages').style.display = tab === 'messages' ? '' : 'none';
+}
+
+function notifIcon(type) {
+  if (type === 'buddy_request' || type === 'buddy_accepted') {
+    return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2E7D97" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+  }
+  if (type === 'like') {
+    return `<svg width="16" height="16" viewBox="0 0 24 24" fill="#be185d" stroke="#be185d" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+  }
+  if (type === 'comment') {
+    return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+  }
+  return '';
+}
+
+function notifText(n) {
+  const u = `<a href="/profile.html?id=${n.actor_id}" style="color:#15323D;font-weight:700;text-decoration:none;">${escHtml(n.actor_username)}</a>`;
+  if (n.type === 'buddy_request')  return `${u} sent you a buddy request`;
+  if (n.type === 'buddy_accepted') return `${u} accepted your buddy request`;
+  if (n.type === 'like')           return `${u} liked your post`;
+  if (n.type === 'comment')        return `${u} commented on your post`;
+  return '';
+}
+
+async function markNotifRead(event, id) {
+  // Don't trigger when clicking the Accept/Decline buttons inside the item
+  if (event.target.closest('button')) return;
+  const n = notifs.find(x => x.id === id);
+  if (!n || n.read) return;
+  n.read = true;
+  renderNotifs();
+  api.put(`/notifications/${id}/read`).catch(() => {});
+}
+
+function renderNotifs() {
+  const el = document.getElementById('notifList');
+  const unread = notifs.filter(n => !n.read).length;
+  document.getElementById('notifBadge').innerHTML = unread ? `<span class="unread-badge">${unread}</span>` : '';
+
+  if (!notifs.length) {
+    el.innerHTML = `<div style="text-align:center;padding:36px 16px;">
+      <div style="font-family:'Instrument Serif',Georgia,serif;font-size:44px;color:#D0DEE3;line-height:1;margin-bottom:10px;">∿</div>
+      <div style="font-size:14.5px;font-weight:600;color:#7C95A0;">No notifications yet</div>
+      <div style="font-size:13px;color:#93A8B1;margin-top:4px;">Likes, comments, and buddy requests will show here</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = notifs.map(n => {
+    const isUnread = !n.read;
+    let actionsHtml = '';
+    if (n.type === 'buddy_request' && n.buddy_request_id) {
+      actionsHtml = `<div style="margin-top:8px;display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="respondBuddy(${n.buddy_request_id}, 'accepted', ${n.id})">Accept</button>
+        <button class="btn btn-secondary btn-sm" onclick="respondBuddy(${n.buddy_request_id}, 'rejected', ${n.id})">Decline</button>
+      </div>`;
+    }
+    let excerptHtml = '';
+    if (n.post_excerpt) {
+      excerptHtml = `<div class="inbox-excerpt">${escHtml(n.post_excerpt)}</div>`;
+    }
+    return `<div class="inbox-item ${isUnread ? 'unread' : ''}" id="notif-${n.id}" ${isUnread ? `onclick="markNotifRead(event,${n.id})"` : ''} style="${isUnread ? 'cursor:pointer;' : ''}">
+      <div style="margin-top:4px;flex-shrink:0;">${notifIcon(n.type)}</div>
+      <div style="flex:1;">
+        <div class="inbox-text">${notifText(n)}</div>
+        ${excerptHtml}
+        ${actionsHtml}
+        <div class="inbox-time">${fmt.timeAgo(n.created_at)}</div>
+      </div>
+      ${isUnread ? '<div class="inbox-dot"></div>' : '<div class="inbox-dot-placeholder"></div>'}
+    </div>`;
+  }).join('');
+}
+
+function renderConvos() {
+  const el = document.getElementById('convoList');
+  const unread = convos.reduce((sum, c) => sum + c.unread_count, 0);
+  document.getElementById('msgBadge').innerHTML = unread ? `<span class="unread-badge">${unread}</span>` : '';
+
+  if (!convos.length) {
+    el.innerHTML = `<div style="text-align:center;padding:36px 16px;">
+      <div style="font-family:'Instrument Serif',Georgia,serif;font-size:44px;color:#D0DEE3;line-height:1;margin-bottom:10px;">∿</div>
+      <div style="font-size:14.5px;font-weight:600;color:#7C95A0;">No messages yet</div>
+      <div style="font-size:13px;color:#93A8B1;margin-top:4px;">Find a buddy and start a conversation from their profile</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = convos.map(c => {
+    const preview = c.sender_id === me.id ? `You: ${c.last_message}` : c.last_message;
+    return `<div class="inbox-item ${c.unread_count > 0 ? 'unread' : ''}" onclick="openConvo(${c.partner_id}, '${escHtml(c.partner_username)}', '${c.partner_avatar_color}', '${c.partner_avatar || ''}')">
+      <div style="flex-shrink:0;">${fmt.avatar(c.partner_username, c.partner_avatar_color, 44, c.partner_avatar || null)}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:${c.unread_count > 0 ? '700' : '600'};font-size:15px;color:#15323D;">${escHtml(c.partner_username)}</span>
+          <span class="inbox-time">${fmt.timeAgo(c.created_at)}</span>
+        </div>
+        <div style="font-size:13px;color:#7C95A0;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(preview.slice(0, 60))}${preview.length > 60 ? '…' : ''}</div>
+      </div>
+      ${c.unread_count > 0 ? `<span class="unread-badge" style="flex-shrink:0;">${c.unread_count}</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function openConvo(partnerId, username, color, avatar) {
+  activeConvoId = partnerId;
+  activePartnerUsername = username;
+  activePartnerColor = color;
+  activePartnerAvatar = avatar;
+  document.getElementById('mainInbox').style.display = 'none';
+  const panel = document.getElementById('convoPanel');
+  panel.classList.add('open');
+
+  document.getElementById('convoHeader').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;">
+      ${fmt.avatar(username, color, 36, avatar || null)}
+      <a href="/profile.html?id=${partnerId}" style="font-weight:600;font-size:15px;color:#15323D;text-decoration:none;">${escHtml(username)}</a>
+    </div>`;
+
+  const msgEl = document.getElementById('convoMessages');
+  msgEl.innerHTML = '<div style="color:#93A8B1;font-size:13px;text-align:center;">Loading…</div>';
+
+  try {
+    const msgs = await api.get(`/messages/${partnerId}`);
+    renderMessages(msgs);
+    // Update unread count in convos list
+    const c = convos.find(x => x.partner_id === partnerId);
+    if (c) { c.unread_count = 0; renderConvos(); }
+  } catch {
+    msgEl.innerHTML = '<div style="color:#c0392b;font-size:13px;text-align:center;">Failed to load</div>';
+  }
+}
+
+function renderMessages(msgs) {
+  const el = document.getElementById('convoMessages');
+  if (!msgs.length) {
+    el.innerHTML = '<div style="color:#93A8B1;font-size:13px;text-align:center;padding:20px 0;">No messages yet. Say hi!</div>';
+    return;
+  }
+  el.innerHTML = msgs.map(m => {
+    const mine = m.sender_id === me.id;
+    return `<div class="convo-row ${mine ? 'mine' : ''}">
+      <div class="convo-bubble ${mine ? 'mine' : 'theirs'}">${escHtml(m.content)}</div>
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+document.getElementById('convoBack').addEventListener('click', () => {
+  activeConvoId = null;
+  document.getElementById('convoPanel').classList.remove('open');
+  document.getElementById('mainInbox').style.display = '';
+});
+
+document.getElementById('msgSend').addEventListener('click', sendMessage);
+document.getElementById('msgInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+async function sendMessage() {
+  if (!activeConvoId) return;
+  const input = document.getElementById('msgInput');
+  const content = input.value.trim();
+  if (!content) return;
+  const btn = document.getElementById('msgSend');
+  btn.disabled = true;
+  try {
+    const msg = await api.post(`/messages/${activeConvoId}`, { content });
+    input.value = '';
+    // Clear placeholder if no real messages yet, then append bubble
+    const el = document.getElementById('convoMessages');
+    if (!el.querySelector('.convo-row')) el.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'convo-row mine';
+    div.innerHTML = `<div class="convo-bubble mine">${escHtml(msg.content)}</div>`;
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+    // Update existing conversation or add a new one, then re-render the list
+    const existing = convos.find(c => c.partner_id === activeConvoId);
+    if (existing) {
+      existing.last_message = msg.content;
+      existing.sender_id = me.id;
+      existing.created_at = msg.created_at;
+    } else {
+      convos.unshift({
+        partner_id: activeConvoId,
+        partner_username: activePartnerUsername,
+        partner_avatar_color: activePartnerColor,
+        partner_avatar: activePartnerAvatar,
+        last_message: msg.content,
+        sender_id: me.id,
+        unread_count: 0,
+        created_at: msg.created_at,
+      });
+    }
+    renderConvos();
+  } catch(e) {
+    alert(e.error || 'Failed to send');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function respondBuddy(reqId, status, notifId) {
+  try {
+    await api.put(`/buddies/request/${reqId}`, { status });
+    // Remove the action buttons from this notification
+    const el = document.getElementById(`notif-${notifId}`);
+    if (el) {
+      const actions = el.querySelector('div[style*="margin-top:8px"]');
+      if (actions) actions.remove();
+      const text = el.querySelector('.inbox-text');
+      if (text && status === 'accepted') text.innerHTML += ' <span style="color:#059669;font-size:12px;">(accepted)</span>';
+      if (text && status === 'rejected') text.innerHTML += ' <span style="color:#93A8B1;font-size:12px;">(declined)</span>';
+    }
+  } catch(e) {
+    alert(e.error || 'Failed');
+  }
+}
+
+async function load() {
+  try {
+    const data = await api.get('/inbox');
+    notifs = data.notifications || [];
+    convos = data.conversations || [];
+    renderNotifs();
+    renderConvos();
+    // Auto-open conversation if ?to=userId is in URL
+    const toId = parseInt(new URLSearchParams(location.search).get('to') || '');
+    if (toId && toId !== me.id) {
+      switchTab('messages');
+      // Find or bootstrap a conversation with this user
+      let c = convos.find(x => x.partner_id === toId);
+      if (!c) {
+        try {
+          const u = await api.get(`/users/${toId}`);
+          openConvo(toId, u.username, u.avatar_color, u.avatar || '');
+        } catch {}
+      } else {
+        openConvo(c.partner_id, c.partner_username, c.partner_avatar_color, c.partner_avatar || '');
+      }
+    }
+    // Mark all as read after a short delay
+    setTimeout(() => api.post('/inbox/read', {}).catch(() => {}), 2000);
+  } catch {
+    document.getElementById('notifList').innerHTML = '<div class="text-muted text-sm" style="padding:16px 0;">Failed to load</div>';
+    document.getElementById('convoList').innerHTML = '';
+  }
+}
+
+load();
+</script>
+</body>
+</html>

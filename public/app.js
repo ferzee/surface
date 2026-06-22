@@ -153,6 +153,7 @@ function renderNav(activePage) {
             <a href="/feed.html"    class="nav-link ${activePage === 'feed'    ? 'active' : ''}">Feed</a>
             <a href="/buddies.html" class="nav-link ${activePage === 'buddies' ? 'active' : ''}">Find Buddies</a>
             <a href="/events.html"  class="nav-link ${activePage === 'events'  ? 'active' : ''}">Events</a>
+            <a href="/inbox.html"   class="nav-link ${activePage === 'inbox'   ? 'active' : ''}" id="navInboxLink" style="position:relative;">Inbox<span id="navInboxBadge" style="display:none;position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#2E7D97,#1C5A72);"></span></a>
           </div>
           <div style="flex:1;max-width:220px;position:relative;margin-left:auto;">
             <input id="ns" type="text" class="input" style="padding:7px 12px;font-size:13px;border-radius:999px;" placeholder="Search divers…">
@@ -188,6 +189,7 @@ function renderNav(activePage) {
         <a href="/feed.html"    class="nav-link nav-link-block ${activePage === 'feed'    ? 'active' : ''}">Feed</a>
         <a href="/buddies.html" class="nav-link nav-link-block ${activePage === 'buddies' ? 'active' : ''}">Find Buddies</a>
         <a href="/events.html"  class="nav-link nav-link-block ${activePage === 'events'  ? 'active' : ''}">Events</a>
+        <a href="/inbox.html"   class="nav-link nav-link-block ${activePage === 'inbox'   ? 'active' : ''}" id="navInboxLinkM" style="position:relative;">Inbox<span id="navInboxBadgeM" style="display:none;position:absolute;top:8px;right:14px;width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#2E7D97,#1C5A72);"></span></a>
         <div style="border-top:1px solid #EEF4F6;margin:10px 0;"></div>
         <a href="/profile.html?id=${user.id}" style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-radius:14px;text-decoration:none;color:#34505B;font-size:14px;font-weight:500;transition:background .15s;" onmouseover="this.style.background='#F4F9FB'" onmouseout="this.style.background=''">
           ${navAvatarHtml}
@@ -248,6 +250,18 @@ function renderNav(activePage) {
 
   attachSearch('ns', 'nsr');
   attachSearch('nsm', 'nsmr');
+
+  // Async unread badge — don't block render
+  if (activePage !== 'inbox') {
+    api.get('/inbox/unread').then(data => {
+      if (data.count > 0) {
+        const b1 = document.getElementById('navInboxBadge');
+        const b2 = document.getElementById('navInboxBadgeM');
+        if (b1) b1.style.display = '';
+        if (b2) b2.style.display = '';
+      }
+    }).catch(() => {});
+  }
 }
 
 // ─── Dive Logger Modal ────────────────────────────────────────────────────────

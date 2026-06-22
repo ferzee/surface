@@ -80,7 +80,10 @@ function render() {
           </div>
           ${isOwn
             ? `<button class="btn btn-secondary btn-sm" id="editBtn">Edit profile</button>`
-            : `<button class="btn ${buddyBtnClass} btn-sm" id="buddyBtn" ${buddyDisabled ? 'disabled' : ''}>${buddyBtnLabel}</button>`
+            : `<div class="flex gap-2">
+                <button class="btn ${buddyBtnClass} btn-sm" id="buddyBtn" ${buddyDisabled ? 'disabled' : ''}>${buddyBtnLabel}</button>
+                <button class="btn btn-secondary btn-sm" onclick="location.href='/inbox.html?to=${profileId}'">Message</button>
+               </div>`
           }
         </div>
         ${profile.bio ? `<p style="margin-top:12px;font-size:14.5px;color:#34505B;line-height:1.55;">${escHtml(profile.bio)}</p>` : ''}

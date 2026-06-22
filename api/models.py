@@ -98,3 +98,33 @@ class EventParticipant(models.Model):
     class Meta:
         db_table = 'event_participants'
         unique_together = [('event', 'user')]
+
+
+class Message(models.Model):
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages', db_column='sender_id')
+    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages', db_column='receiver_id')
+    content = models.TextField()
+    read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'messages'
+
+
+class Notification(models.Model):
+    TYPE_CHOICES = [
+        ('buddy_request', 'Buddy Request'),
+        ('buddy_accepted', 'Buddy Accepted'),
+        ('like', 'Like'),
+        ('comment', 'Comment'),
+    ]
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications', db_column='recipient_id')
+    actor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='triggered_notifications', db_column='actor_id')
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, null=True, blank=True, db_column='post_id')
+    buddy_request = models.ForeignKey(BuddyRequest, on_delete=models.SET_NULL, null=True, blank=True, db_column='buddy_request_id')
+    read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'notifications'

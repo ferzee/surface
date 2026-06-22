@@ -30,4 +30,10 @@ urlpatterns = [
     path('events', views.events),
     path('events/<int:id>/participate', views.event_participate),
     path('events/<int:id>', views.event_detail),
+    # Inbox / Messages
+    path('notifications/<int:id>/read', views.notification_read),
+    path('inbox', views.inbox),
+    path('inbox/unread', views.inbox_unread),
+    path('inbox/read', views.inbox_mark_read),
+    path('messages/<int:user_id>', views.conversation),
 ]

@@ -12,7 +12,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .auth import check_password, create_token, hash_password, verify_token
 from .models import (BuddyRequest, Comment, Dive, Event, EventParticipant,
-                     Post, PostLike, User)
+                     Message, Notification, Post, PostLike, User)
 
 COLORS = ['#0891b2', '#0e7490', '#1d4ed8', '#7c3aed', '#059669', '#b45309', '#be185d']
 CERT_OPTIONS = {
@@ -333,6 +333,16 @@ def like_post(request, id):
     else:
         PostLike.objects.create(post_id=id, user_id=request.user_id)
         liked = True
+        try:
+            post = Post.objects.get(id=id)
+            if post.user_id != request.user_id:
+                Notification.objects.update_or_create(
+                    recipient_id=post.user_id, actor_id=request.user_id,
+                    type='like', post_id=id,
+                    defaults={'read': False},
+                )
+        except Post.DoesNotExist:
+            pass
     count = PostLike.objects.filter(post_id=id).count()
     return JsonResponse({'liked': liked, 'count': count})
 
@@ -355,6 +365,15 @@ def comments(request, id):
             return JsonResponse({'error': 'Content required'}, status=400)
         c = Comment.objects.create(post_id=id, user_id=request.user_id, content=content)
         c.refresh_from_db()
+        try:
+            post = Post.objects.get(id=id)
+            if post.user_id != request.user_id:
+                Notification.objects.create(
+                    recipient_id=post.user_id, actor_id=request.user_id,
+                    type='comment', post_id=id,
+                )
+        except Post.DoesNotExist:
+            pass
         user = User.objects.get(id=request.user_id)
         return JsonResponse({
             'id': c.id, 'post_id': c.post_id, 'user_id': c.user_id,
@@ -476,7 +495,10 @@ def buddy_request(request, id):
         ).first()
         if existing:
             return JsonResponse({'error': 'Request already exists'}, status=400)
-        BuddyRequest.objects.create(sender_id=uid, receiver_id=tid)
+        br = BuddyRequest.objects.create(sender_id=uid, receiver_id=tid)
+        Notification.objects.create(
+            recipient_id=tid, actor_id=uid, type='buddy_request', buddy_request=br,
+        )
         return JsonResponse({'success': True})
 
     if request.method == 'PUT':
@@ -493,6 +515,10 @@ def buddy_request(request, id):
         else:
             pending.status = status
             pending.save()
+            Notification.objects.create(
+                recipient_id=pending.sender_id, actor_id=request.user_id,
+                type='buddy_accepted', buddy_request=pending,
+            )
         return JsonResponse({'success': True})
 
     return JsonResponse({'error': 'Method not allowed'}, status=405)
@@ -593,3 +619,136 @@ def event_detail(request, id):
     if not deleted:
         return JsonResponse({'error': 'Not found'}, status=404)
     return JsonResponse({'success': True})
+
+
+# ── Inbox / Messages ──────────────────────────────────────────────────────────
+
+@require_auth
+def inbox(request):
+    uid = request.user_id
+
+    notifs = list(
+        Notification.objects.filter(recipient_id=uid)
+        .select_related('actor', 'post')
+        .order_by('-created_at')[:100]
+    )
+    notif_items = []
+    for n in notifs:
+        item = {
+            'kind': 'notification',
+            'id': n.id,
+            'type': n.type,
+            'read': n.read,
+            'created_at': n.created_at.isoformat(),
+            'actor_id': n.actor_id,
+            'actor_username': n.actor.username,
+            'actor_avatar_color': n.actor.avatar_color,
+            'actor_avatar': n.actor.avatar,
+        }
+        if n.post_id:
+            item['post_id'] = n.post_id
+            item['post_excerpt'] = (n.post.content[:80] + '…') if n.post and len(n.post.content) > 80 else (n.post.content if n.post else '')
+        if n.buddy_request_id:
+            item['buddy_request_id'] = n.buddy_request_id
+        notif_items.append(item)
+
+    # One row per conversation (latest message per partner), grouped in Python
+    all_msgs = list(
+        Message.objects.filter(Q(sender_id=uid) | Q(receiver_id=uid))
+        .order_by('-created_at')
+        .select_related('sender', 'receiver')[:500]
+    )
+    seen_partners = set()
+    convo_items = []
+    for m in all_msgs:
+        pid = m.receiver_id if m.sender_id == uid else m.sender_id
+        if pid in seen_partners:
+            continue
+        seen_partners.add(pid)
+        partner = m.receiver if m.sender_id == uid else m.sender
+        unread = Message.objects.filter(sender_id=pid, receiver_id=uid, read=False).count()
+        convo_items.append({
+            'kind': 'message',
+            'id': m.id,
+            'partner_id': pid,
+            'partner_username': partner.username,
+            'partner_avatar_color': partner.avatar_color,
+            'partner_avatar': partner.avatar,
+            'last_message': m.content,
+            'sender_id': m.sender_id,
+            'unread_count': unread,
+            'created_at': m.created_at.isoformat(),
+        })
+
+    return JsonResponse({'notifications': notif_items, 'conversations': convo_items})
+
+
+@require_auth
+def inbox_unread(request):
+    uid = request.user_id
+    count = (
+        Notification.objects.filter(recipient_id=uid, read=False).count() +
+        Message.objects.filter(receiver_id=uid, read=False).count()
+    )
+    return JsonResponse({'count': count})
+
+
+@csrf_exempt
+@require_auth
+def notification_read(request, id):
+    if request.method != 'PUT':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    Notification.objects.filter(id=id, recipient_id=request.user_id).update(read=True)
+    return JsonResponse({'success': True})
+
+
+@csrf_exempt
+@require_auth
+def inbox_mark_read(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    uid = request.user_id
+    Notification.objects.filter(recipient_id=uid, read=False).update(read=True)
+    Message.objects.filter(receiver_id=uid, read=False).update(read=True)
+    return JsonResponse({'success': True})
+
+
+@csrf_exempt
+@require_auth
+def conversation(request, user_id):
+    uid = request.user_id
+
+    if request.method == 'GET':
+        msgs = list(
+            Message.objects.filter(
+                Q(sender_id=uid, receiver_id=user_id) | Q(sender_id=user_id, receiver_id=uid)
+            ).order_by('created_at')[:200]
+        )
+        Message.objects.filter(sender_id=user_id, receiver_id=uid, read=False).update(read=True)
+        return JsonResponse([{
+            'id': m.id,
+            'sender_id': m.sender_id,
+            'receiver_id': m.receiver_id,
+            'content': m.content,
+            'read': m.read,
+            'created_at': m.created_at.isoformat(),
+        } for m in msgs], safe=False)
+
+    if request.method == 'POST':
+        data = body(request)
+        content = (data.get('content') or '').strip()
+        if not content:
+            return JsonResponse({'error': 'Content required'}, status=400)
+        if not User.objects.filter(id=user_id).exists():
+            return JsonResponse({'error': 'User not found'}, status=404)
+        msg = Message.objects.create(sender_id=uid, receiver_id=user_id, content=content)
+        return JsonResponse({
+            'id': msg.id,
+            'sender_id': msg.sender_id,
+            'receiver_id': msg.receiver_id,
+            'content': msg.content,
+            'read': msg.read,
+            'created_at': msg.created_at.isoformat(),
+        })
+
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
