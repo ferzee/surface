@@ -65,9 +65,10 @@ function renderEvents() {
 
   const el = document.getElementById('eventList');
   if (!filtered.length) {
+    const emptyLabel = { mine: 'No events created yet', upcoming: 'No upcoming events', past: 'No past events', all: 'No events' }[filter] || 'No events';
     el.innerHTML = `<div class="card card-p" style="text-align:center;padding:60px 24px;">
       <div style="font-family:'Instrument Serif',Georgia,serif;font-size:44px;color:#D0DEE3;line-height:1;margin-bottom:12px;">📅</div>
-      <div style="font-size:15px;font-weight:600;color:#7C95A0;">No ${filter} events</div>
+      <div style="font-size:15px;font-weight:600;color:#7C95A0;">${emptyLabel}</div>
       ${filter === 'upcoming' ? '<div style="font-size:13px;color:#93A8B1;margin-top:5px;">Create one to organise a dive session!</div>' : ''}
     </div>`;
     return;
