@@ -41,6 +41,12 @@ const me = Auth.require();
 renderNav('feed');
 document.getElementById('myAvatar').innerHTML = fmt.avatar(me.username, me.avatar_color, 38, me.avatar || null);
 
+// Sync fresh user data so the avatar is always current
+api.get('/users/me').then(fresh => {
+  Auth.set(fresh, Auth.getToken());
+  document.getElementById('myAvatar').innerHTML = fmt.avatar(fresh.username, fresh.avatar_color, 38, fresh.avatar || null);
+}).catch(() => {});
+
 let posts = [];
 
 function escHtml(s) {
