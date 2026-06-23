@@ -226,19 +226,40 @@ function onDiveLogged(dive) {
   render();
 }
 
-async function deleteDive(id) {
-  if (!confirm('Delete this dive?')) return;
-  try {
-    await api.del(`/dives/${id}`);
-    dives = dives.filter(d => d.id !== id);
-    profile.diveCount = Math.max(0, profile.diveCount - 1);
-    profile.records = { static: null, dynamic: null, depth: null };
-    dives.forEach(d => {
-      if (profile.records[d.discipline] === null || d.value > profile.records[d.discipline])
-        profile.records[d.discipline] = d.value;
-    });
-    render();
-  } catch {}
+function deleteDive(id) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:380px;text-align:center;">
+      <div style="width:48px;height:48px;border-radius:50%;background:rgba(192,57,43,0.08);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </div>
+      <div class="modal-title" style="margin-bottom:8px;">Delete dive?</div>
+      <p style="color:#5B7682;font-size:14px;margin:0 0 24px;">This can't be undone.</p>
+      <div style="display:flex;gap:10px;">
+        <button id="delCancelBtn" class="btn btn-secondary" style="flex:1;">Cancel</button>
+        <button id="delConfirmBtn" class="btn" style="flex:1;background:linear-gradient(135deg,#c0392b,#962d22);color:#fff;border:none;">Delete</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => document.body.removeChild(overlay);
+  overlay.querySelector('#delCancelBtn').onclick = close;
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('#delConfirmBtn').onclick = async () => {
+    close();
+    try {
+      await api.del(`/dives/${id}`);
+      dives = dives.filter(d => d.id !== id);
+      profile.diveCount = Math.max(0, profile.diveCount - 1);
+      profile.records = { static: null, dynamic: null, depth: null };
+      dives.forEach(d => {
+        if (profile.records[d.discipline] === null || d.value > profile.records[d.discipline])
+          profile.records[d.discipline] = d.value;
+      });
+      render();
+    } catch {}
+  };
 }
 
 async function deletePost(id) {
