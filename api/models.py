@@ -13,6 +13,7 @@ class User(models.Model):
     certifications = models.TextField(default='[]', blank=True)
     diving_since = models.IntegerField(null=True, blank=True)
     dive_school = models.TextField(default='', blank=True)
+    notify_by_email = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

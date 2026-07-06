@@ -11,6 +11,7 @@ from django.http import FileResponse, Http404, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from .auth import check_password, create_token, hash_password, verify_token
+from .emails import send_notification_email
 from .models import (BuddyRequest, Comment, Dive, Event, EventParticipant,
                      Message, Notification, Post, PostLike, User)
 
@@ -68,6 +69,7 @@ def user_dict(user):
         'certifications': certs,
         'diving_since': user.diving_since,
         'dive_school': user.dive_school,
+        'notify_by_email': user.notify_by_email,
         'created_at': user.created_at.isoformat() if user.created_at else None,
     }
 
@@ -156,6 +158,8 @@ def me(request):
         hc = data.get('header_color')
         if hc and hc in HEADER_COLOR_KEYS:
             update_fields['header_color'] = hc
+        if 'notify_by_email' in data:
+            update_fields['notify_by_email'] = bool(data.get('notify_by_email'))
         certs = data.get('certifications')
         if isinstance(certs, list):
             update_fields['certifications'] = json.dumps([c for c in certs if c in CERT_OPTIONS])
@@ -334,13 +338,15 @@ def like_post(request, id):
         PostLike.objects.create(post_id=id, user_id=request.user_id)
         liked = True
         try:
-            post = Post.objects.get(id=id)
+            post = Post.objects.select_related('user').get(id=id)
             if post.user_id != request.user_id:
                 Notification.objects.update_or_create(
                     recipient_id=post.user_id, actor_id=request.user_id,
                     type='like', post_id=id,
                     defaults={'read': False},
                 )
+                actor = User.objects.get(id=request.user_id)
+                send_notification_email(post.user, actor, 'like')
         except Post.DoesNotExist:
             pass
     count = PostLike.objects.filter(post_id=id).count()
@@ -366,12 +372,14 @@ def comments(request, id):
         c = Comment.objects.create(post_id=id, user_id=request.user_id, content=content)
         c.refresh_from_db()
         try:
-            post = Post.objects.get(id=id)
+            post = Post.objects.select_related('user').get(id=id)
             if post.user_id != request.user_id:
                 Notification.objects.create(
                     recipient_id=post.user_id, actor_id=request.user_id,
                     type='comment', post_id=id,
                 )
+                actor = User.objects.get(id=request.user_id)
+                send_notification_email(post.user, actor, 'comment')
         except Post.DoesNotExist:
             pass
         user = User.objects.get(id=request.user_id)
@@ -499,6 +507,7 @@ def buddy_request(request, id):
         Notification.objects.create(
             recipient_id=tid, actor_id=uid, type='buddy_request', buddy_request=br,
         )
+        send_notification_email(User.objects.get(id=tid), User.objects.get(id=uid), 'buddy_request')
         return JsonResponse({'success': True})
 
     if request.method == 'PUT':
@@ -519,6 +528,7 @@ def buddy_request(request, id):
                 recipient_id=pending.sender_id, actor_id=request.user_id,
                 type='buddy_accepted', buddy_request=pending,
             )
+            send_notification_email(pending.sender, User.objects.get(id=request.user_id), 'buddy_accepted')
         return JsonResponse({'success': True})
 
     return JsonResponse({'error': 'Method not allowed'}, status=405)

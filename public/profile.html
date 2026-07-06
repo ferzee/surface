@@ -382,6 +382,12 @@ function openEditModal() {
         <label class="label">Certifications</label>
         ${certGroupsHtml}
       </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;font-size:14.5px;color:#34505B;cursor:pointer;">
+          <input type="checkbox" id="editNotifyByEmail" ${profile.notify_by_email ? 'checked' : ''}>
+          Email me about likes, comments and buddy requests
+        </label>
+      </div>
       <div id="editErr"></div>
       <div class="flex gap-2 mt-3">
         <button class="btn btn-secondary flex-1" id="editCancel">Cancel</button>
@@ -454,6 +460,7 @@ function openEditModal() {
         certifications: [...selectedCerts],
         diving_since:  dsVal ? parseInt(dsVal) : null,
         dive_school:   overlay.querySelector('#editDiveSchool').value,
+        notify_by_email: overlay.querySelector('#editNotifyByEmail').checked,
       });
       profile = { ...profile, ...updated };
       Auth.set({ ...me, ...updated }, Auth.getToken());
