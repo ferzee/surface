@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -56,13 +57,32 @@ TEMPLATES = [
 ROOT_URLCONF = 'surface.urls'
 WSGI_APPLICATION = 'surface.wsgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        'OPTIONS': {'init_command': 'PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;'},
+# Database: MySQL when db_credentials.json is present (production),
+# sqlite otherwise (local development). db_credentials.json is git-ignored;
+# see db_credentials.json.example for the expected format.
+DB_CREDENTIALS_FILE = BASE_DIR / 'db_credentials.json'
+
+if DB_CREDENTIALS_FILE.exists():
+    with open(DB_CREDENTIALS_FILE) as f:
+        _db_credentials = json.load(f)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': _db_credentials['NAME'],
+            'USER': _db_credentials['USER'],
+            'PASSWORD': _db_credentials['PASSWORD'],
+            'HOST': _db_credentials['HOST'],
+            'OPTIONS': {'charset': 'utf8mb4'},
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+            'OPTIONS': {'init_command': 'PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;'},
+        }
+    }
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')

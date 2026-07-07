@@ -1,0 +1,13 @@
+# Database credentials — never commit
+db_credentials.json
+
+# Local databases
+db.sqlite3
+*.db
+*.db-shm
+*.db-wal
+
+# Python
+__pycache__/
+*.pyc
+venv/
