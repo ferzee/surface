@@ -134,6 +134,12 @@ function renderNav(activePage) {
     ? `<img src="${user.avatar}" style="width:30px;height:30px;border-radius:9px;object-fit:cover;" alt="">`
     : `<div class="avatar" style="width:30px;height:30px;background:${grad};font-size:11px;">${initials}</div>`;
 
+  const inboxSvg = `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 12h-6l-2 3h-4l-2-3H2"/>
+    <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+  </svg>`;
+  const inboxBadge = (id) => `<span id="${id}" style="display:none;position:absolute;top:4px;right:5px;width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,#2E7D97,#1C5A72);border:2px solid #F7FBFC;"></span>`;
+
   const brandSvg = `<svg width="19" height="19" viewBox="0 0 24 24" fill="none">
     <path d="M3 13c2.2 0 2.2-2 4.5-2s2.3 2 4.5 2 2.2-2 4.5-2 2.3 2 4.5 2" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
     <path d="M3 18c2.2 0 2.2-2 4.5-2s2.3 2 4.5 2 2.2-2 4.5-2 2.3 2 4.5 2" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
@@ -153,12 +159,15 @@ function renderNav(activePage) {
             <a href="/feed.html"    class="nav-link ${activePage === 'feed'    ? 'active' : ''}">Feed</a>
             <a href="/buddies.html" class="nav-link ${activePage === 'buddies' ? 'active' : ''}">Find Buddies</a>
             <a href="/events.html"  class="nav-link ${activePage === 'events'  ? 'active' : ''}">Events</a>
-            <a href="/inbox.html"   class="nav-link ${activePage === 'inbox'   ? 'active' : ''}" id="navInboxLink" style="position:relative;">Inbox<span id="navInboxBadge" style="display:none;position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#2E7D97,#1C5A72);"></span></a>
           </div>
           <div style="flex:1;max-width:220px;position:relative;margin-left:auto;">
             <input id="ns" type="text" class="input" style="padding:7px 12px;font-size:13px;border-radius:999px;" placeholder="Search divers…">
             <div id="nsr" class="card hidden" style="position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:60;overflow:hidden;border-radius:16px;padding:6px 0;"></div>
           </div>
+          <a href="/inbox.html" class="nav-inbox-btn ${activePage === 'inbox' ? 'active' : ''}" aria-label="Inbox" style="margin-left:8px;">
+            ${inboxSvg}
+            ${inboxBadge('navInboxBadge')}
+          </a>
           <div style="position:relative;margin-left:8px;">
             <button id="umBtn" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:6px 10px;border-radius:999px;transition:background .15s;" onmouseover="this.style.background='rgba(46,125,151,0.07)'" onmouseout="this.style.background=''">
               ${navAvatarHtml}
@@ -172,7 +181,11 @@ function renderNav(activePage) {
           </div>
         </div>
 
-        <!-- Mobile: hamburger button -->
+        <!-- Mobile: inbox icon + hamburger button -->
+        <a href="/inbox.html" class="nav-inbox-btn nav-inbox-mobile ${activePage === 'inbox' ? 'active' : ''}" aria-label="Inbox">
+          ${inboxSvg}
+          ${inboxBadge('navInboxBadgeIcon')}
+        </a>
         <button id="navHamburger" class="nav-hamburger" aria-label="Toggle menu">
           <svg id="hamburgerIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
@@ -189,7 +202,6 @@ function renderNav(activePage) {
         <a href="/feed.html"    class="nav-link nav-link-block ${activePage === 'feed'    ? 'active' : ''}">Feed</a>
         <a href="/buddies.html" class="nav-link nav-link-block ${activePage === 'buddies' ? 'active' : ''}">Find Buddies</a>
         <a href="/events.html"  class="nav-link nav-link-block ${activePage === 'events'  ? 'active' : ''}">Events</a>
-        <a href="/inbox.html"   class="nav-link nav-link-block ${activePage === 'inbox'   ? 'active' : ''}" id="navInboxLinkM" style="position:relative;">Inbox<span id="navInboxBadgeM" style="display:none;position:absolute;top:8px;right:14px;width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#2E7D97,#1C5A72);"></span></a>
         <div style="border-top:1px solid #EEF4F6;margin:10px 0;"></div>
         <a href="/profile.html?id=${user.id}" style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-radius:14px;text-decoration:none;color:#34505B;font-size:14px;font-weight:500;transition:background .15s;" onmouseover="this.style.background='#F4F9FB'" onmouseout="this.style.background=''">
           ${navAvatarHtml}
@@ -256,7 +268,7 @@ function renderNav(activePage) {
     api.get('/inbox/unread').then(data => {
       if (data.count > 0) {
         const b1 = document.getElementById('navInboxBadge');
-        const b2 = document.getElementById('navInboxBadgeM');
+        const b2 = document.getElementById('navInboxBadgeIcon');
         if (b1) b1.style.display = '';
         if (b2) b2.style.display = '';
       }

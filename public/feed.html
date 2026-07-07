@@ -14,7 +14,7 @@
   <div class="card card-p" style="margin-bottom:16px;">
     <div class="flex gap-3 items-center">
       <div id="myAvatar"></div>
-      <textarea id="postContent" class="input flex-1" rows="2" placeholder="Share a dive, a thought, or find a buddy…" style="border-radius:18px;resize:none;"></textarea>
+      <textarea id="postContent" class="input flex-1" rows="2" placeholder="What's on your mind?" style="border-radius:18px;resize:none;"></textarea>
     </div>
     <div class="flex" style="justify-content:space-between;align-items:center;margin-top:13px;">
       <button class="btn btn-secondary btn-sm" id="logDiveBtn">
@@ -180,7 +180,7 @@ function renderComments(postId) {
   const el = document.getElementById(`comments-${postId}`);
   el.innerHTML = comments.map(c => `
     <div class="flex gap-3 items-start" style="margin-bottom:10px;">
-      ${fmt.avatar(c.username, c.avatar_color, 30)}
+      ${fmt.avatar(c.username, c.avatar_color, 30, c.avatar || null)}
       <div style="background:#F4F9FB;border-radius:14px;padding:9px 13px;flex:1;min-width:0;">
         <span style="font-weight:600;font-size:13px;color:#15323D;">${escHtml(c.username)}</span>
         <span style="font-size:12px;color:#93A8B1;margin-left:8px;">${fmt.timeAgo(c.created_at)}</span>

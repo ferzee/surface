@@ -90,6 +90,15 @@ select.input { cursor: pointer; }
   transition: background .15s; margin-left: auto; flex-shrink: 0;
 }
 .nav-hamburger:hover { background: rgba(46,125,151,0.08); }
+.nav-inbox-btn {
+  display: flex; align-items: center; justify-content: center;
+  position: relative; cursor: pointer;
+  padding: 6px 8px; border-radius: 10px; color: #5B7682;
+  transition: background .15s, color .15s; flex-shrink: 0;
+}
+.nav-inbox-btn:hover { color: #2E7D97; background: rgba(46,125,151,0.08); }
+.nav-inbox-btn.active { color: #2E7D97; background: rgba(46,125,151,0.1); }
+.nav-inbox-mobile { display: none; margin-left: auto; }
 .nav-mobile-drawer {
   display: none;
   padding: 10px 16px 18px;
@@ -101,7 +110,8 @@ select.input { cursor: pointer; }
 
 @media (max-width: 767px) {
   .nav-desktop { display: none !important; }
-  .nav-hamburger { display: flex; align-items: center; justify-content: center; }
+  .nav-hamburger { display: flex; align-items: center; justify-content: center; margin-left: 2px; }
+  .nav-inbox-mobile { display: flex; }
 }
 
 /* ── Discipline badges ───────────────────────────────────────────────────── */

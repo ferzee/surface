@@ -205,7 +205,7 @@ on('GET', '/api/users/me', async (_req, res, { userId }) => {
 on('GET', '/api/users/search', async (_req, res, { userId, query }) => {
   const q = (query.get('q') || '').trim();
   if (!q) return send(res, 200, []);
-  const users = db.prepare('SELECT id,username,bio,location,avatar_color FROM users WHERE username LIKE ? AND id!=? LIMIT 10').all(`%${q}%`, userId);
+  const users = db.prepare('SELECT id,username,bio,location,avatar_color,avatar FROM users WHERE username LIKE ? AND id!=? LIMIT 10').all(`%${q}%`, userId);
   send(res, 200, users);
 });
 
@@ -299,7 +299,7 @@ on('POST', '/api/posts/:id/like', async (_req, res, { userId, params }) => {
 
 on('GET', '/api/posts/:id/comments', async (_req, res, { params }) => {
   const comments = db.prepare(`
-    SELECT c.*,u.username,u.avatar_color FROM comments c
+    SELECT c.*,u.username,u.avatar_color,u.avatar FROM comments c
     JOIN users u ON c.user_id=u.id WHERE c.post_id=? ORDER BY c.created_at ASC
   `).all(params.id);
   send(res, 200, comments);
@@ -308,7 +308,7 @@ on('GET', '/api/posts/:id/comments', async (_req, res, { params }) => {
 on('POST', '/api/posts/:id/comments', async (_req, res, { userId, params, body }) => {
   if (!body.content?.trim()) return send(res, 400, { error: 'Content required' });
   const r = db.prepare('INSERT INTO comments (post_id,user_id,content) VALUES (?,?,?)').run(parseInt(params.id), userId, body.content.trim());
-  const c = db.prepare('SELECT c.*,u.username,u.avatar_color FROM comments c JOIN users u ON c.user_id=u.id WHERE c.id=?').get(r.lastInsertRowid);
+  const c = db.prepare('SELECT c.*,u.username,u.avatar_color,u.avatar FROM comments c JOIN users u ON c.user_id=u.id WHERE c.id=?').get(r.lastInsertRowid);
   send(res, 200, c);
 });
 
@@ -341,7 +341,7 @@ on('DELETE', '/api/dives/:id', async (_req, res, { userId, params }) => {
 // BUDDIES
 on('GET', '/api/buddies', async (_req, res, { userId }) => {
   const buddies = db.prepare(`
-    SELECT u.id,u.username,u.bio,u.location,u.avatar_color,br.created_at buddy_since
+    SELECT u.id,u.username,u.bio,u.location,u.avatar_color,u.avatar,br.created_at buddy_since
     FROM buddy_requests br
     JOIN users u ON (CASE WHEN br.sender_id=? THEN br.receiver_id ELSE br.sender_id END)=u.id
     WHERE (br.sender_id=? OR br.receiver_id=?) AND br.status='accepted'
@@ -352,12 +352,12 @@ on('GET', '/api/buddies', async (_req, res, { userId }) => {
 
 on('GET', '/api/buddies/requests', async (_req, res, { userId }) => {
   const received = db.prepare(`
-    SELECT br.id,br.sender_id,br.created_at,u.username,u.bio,u.avatar_color
+    SELECT br.id,br.sender_id,br.created_at,u.username,u.bio,u.avatar_color,u.avatar
     FROM buddy_requests br JOIN users u ON br.sender_id=u.id
     WHERE br.receiver_id=? AND br.status='pending' ORDER BY br.created_at DESC
   `).all(userId);
   const sent = db.prepare(`
-    SELECT br.id,br.receiver_id,br.created_at,u.username,u.avatar_color
+    SELECT br.id,br.receiver_id,br.created_at,u.username,u.avatar_color,u.avatar
     FROM buddy_requests br JOIN users u ON br.receiver_id=u.id
     WHERE br.sender_id=? AND br.status='pending' ORDER BY br.created_at DESC
   `).all(userId);

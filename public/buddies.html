@@ -63,7 +63,7 @@ let buddies = [], received = [], sent = [];
 
 function userRow(user, actionHtml) {
   return `<div class="flex items-center gap-3" style="padding:11px 0;border-bottom:1px solid #F0F5F7;" id="urow-${user.id}">
-    <a href="/profile.html?id=${user.id}" style="flex-shrink:0;">${fmt.avatar(user.username, user.avatar_color, 44)}</a>
+    <a href="/profile.html?id=${user.id}" style="flex-shrink:0;">${fmt.avatar(user.username, user.avatar_color, 44, user.avatar || null)}</a>
     <div class="flex-1 truncate">
       <a href="/profile.html?id=${user.id}" style="font-weight:600;font-size:15px;color:#15323D;text-decoration:none;display:block;">${escHtml(user.username)}</a>
       ${user.location ? `<div style="font-size:12.5px;color:#93A8B1;margin-top:1px;">${escHtml(user.location)}</div>` : ''}
