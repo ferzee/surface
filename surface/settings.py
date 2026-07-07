@@ -7,7 +7,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'surface-django-dev-key-2024')
 SURFACE_TOKEN_SECRET = os.environ.get('SECRET', 'surface-dev-key-2024')
 
 DEBUG = True
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", "surface.pythonanywhere.com"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "surface.pythonanywhere.com", "www.surfacedive.app"]
 APPEND_SLASH = False
 
 EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
