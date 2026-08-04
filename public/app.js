@@ -32,7 +32,7 @@ const api = {
       body: body != null ? JSON.stringify(body) : undefined,
     });
     const data = await res.json().catch(() => ({}));
-    if (res.status === 401) { Auth.logout(); throw data; }
+    if (res.status === 401 && token) { Auth.logout(); throw data; }
     if (!res.ok) throw data;
     return data;
   },
@@ -46,7 +46,7 @@ const api = {
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(`/api${path}`, { method: 'POST', headers, body: formData });
     const data = await res.json().catch(() => ({}));
-    if (res.status === 401) { Auth.logout(); throw data; }
+    if (res.status === 401 && token) { Auth.logout(); throw data; }
     if (!res.ok) throw data;
     return data;
   },
